@@ -14,7 +14,7 @@ alchemy_url = f"https://eth-mainnet.alchemyapi.io/v2/{alchemy_token}"
 def connect_to_eth():
 	# TODO insert your code for this method from last week's assignment
 	url = alchemy_url
-  	w3 = Web3(HTTPProvider(url))
+	w3 = Web3(HTTPProvider(url))
 	assert w3.is_connected(), f"Failed to connect to provider at {url}"
 	return w3
 
@@ -26,12 +26,12 @@ def connect_with_middleware(contract_json):
 		d = d['bsc']
 		address = d['address']
 		abi = d['abi']
-
+	
 	bnb_testnet_url = "https://data-seed-prebsc-1-s1.binance.org:8545/"
 	w3 = Web3(HTTPProvider(bnb_testnet_url))
 	assert w3.is_connected(), f"Failed to connect to provider at {bnb_testnet_url}"
 	w3.middleware_onion.inject(geth_poa_middleware, layer=0)
-
+	
 	contract = w3.eth.contract(address=address, abi=abi)
 	return w3, contract
 
@@ -51,24 +51,24 @@ def is_ordered_block(w3, block_num):
 	"""
 	block = w3.eth.get_block(block_num, full_transactions=True)
 	ordered = False
-
+	
 	# TODO YOUR CODE HERE
 	transactions = block.transactions
 	base_fee_per_gas = block.get('baseFeePerGas', 0)
-
+	
 	priority_fees = []
-
+	
 	for tx in transactions:
 		# calculate priority fee for each transaction
 		if 'maxPriorityFeePerGas' in tx and 'maxFeePerGas' in tx:
-				# type 2 transaction
-				priority_fee = min(tx['maxPriorityFeePerGas'], tx['maxFeePerGas'] - base_fee_per_gas)
+			# type 2 transaction
+			priority_fee = min(tx['maxPriorityFeePerGas'], tx['maxFeePerGas'] - base_fee_per_gas)
 		else:
-				# type 0 transaction
-				priority_fee = tx['gasPrice'] - base_fee_per_gas
-
+			# type 0 transaction
+			priority_fee = tx['gasPrice'] - base_fee_per_gas
+		
 		priority_fees.append(priority_fee)
-
+	
 	ordered = priority_fees == sorted(priority_fees, reverse=True)
 	
 	return ordered
@@ -89,13 +89,13 @@ def get_contract_values(contract, admin_address, owner_address):
 	https://testnet.bscscan.com/address/0xaA7CAaDA823300D18D3c43f65569a47e78220073
 	"""
 	default_admin_role = int.to_bytes(0, 32, byteorder="big")
-
+	
 	# TODO complete the following lines by performing contract calls
 	onchain_root = contract.functions.merkleRoot().call()  # Get and return the merkleRoot from the provided contract
 	default_admin_role = contract.functions.DEFAULT_ADMIN_ROLE().call()
 	has_role = contract.functions.hasRole(default_admin_role, admin_address).call()  # Check the contract to see if the address "admin_address" has the role "default_admin_role"
 	prime = contract.functions.getPrimeByOwner(owner_address).call()  # Call the contract to get the prime owned by "owner_address"
-
+	
 	return onchain_root, has_role, prime
 
 
