@@ -60,9 +60,9 @@ def get_ape_info(apeID):
 		      # extract the eye attribute
 		      attributes = metadata.get('attributes', [])
 		      for attribute in attributes:
-				if attribute.get('trait_type') == 'Eyes':
-				  data['eyes'] = attribute.get('value', "")
-				  break
+			if attribute.get('trait_type') == 'Eyes':
+				data['eyes'] = attribute.get('value', "")
+				break
 	    else:
 	      raise ValueError(f"Failed to fetch metadata from IPFS, status code: {response.status_code}")
 	except Exception as err:
