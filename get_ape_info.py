@@ -28,46 +28,45 @@ if not web3.is_connected():
 contract = web3.eth.contract(address=contract_address, abi=abi)
 
 def get_ape_info(apeID):
-  assert isinstance(apeID,int), f"{apeID} is not an int"
-  assert 1 <= apeID, f"{apeID} must be at least 1"
-  
-  data = {'owner': "", 'image': "", 'eyes': "" }
+	assert isinstance(apeID,int), f"{apeID} is not an int"
+	assert 1 <= apeID, f"{apeID} must be at least 1"
+	
+	data = {'owner': "", 'image': "", 'eyes': "" }
 	
 	#YOUR CODE HERE	
-
-  # get the current owner of the specified ape
-  try:
-    owner = contract.functions.ownerOf(apeID).call()
-    data['owner'] = owner
-  except Exception as err:
-    raise ValueError(f"Failed to get owner for Ape ID {apeID}: {err}")
+	# get the current owner of the specified ape
+	try:
+		owner = contract.functions.ownerOf(apeID).call()
+		data['owner'] = owner
+	except Exception as err:
+		raise ValueError(f"Failed to get owner for Ape ID {apeID}: {err}")
   
-  # get the token uri for metadata
-  try:
-    token_uri = contract.functions.tokenURI(apeID).call()
-    if token_uri.startswith("ipfs://"):
-      token_uri = token_uri.replace("ipfs://", "https://ipfs.io/ipfs/")
+	# get the token uri for metadata
+	try:
+		token_uri = contract.functions.tokenURI(apeID).call()
+		if token_uri.startswith("ipfs://"):
+			token_uri = token_uri.replace("ipfs://", "https://ipfs.io/ipfs/")
   
-  except Exception as err:
-    raise ValueError(f"Failed to get tokenURI for Ape ID {apeID}: {err}")
+	except Exception as err:
+		raise ValueError(f"Failed to get tokenURI for Ape ID {apeID}: {err}")
 
-  # fetch metadata from ipfs
-  try:
-    response = requests.get(token_uri, timeout=20)
-    if response.status_code == 200:
-      metadata = response.json()
-      # extract the image URI
-      data['image'] = metadata.get('image', "")
-      # extract the eye attribute
-      attributes = metadata.get('attributes', [])
-      for attribute in attributes:
-        if attribute.get('trait_type') == 'Eyes':
-          data['eyes'] = attribute.get('value', "")
-          break
-    else:
-      raise ValueError(f"Failed to fetch metadata from IPFS, status code: {response.status_code}")
-    except Exception as e:
-      raise ValueError(f"Failed to fetch metadata from IPFS for Ape ID {apeID}: {e}")
+	# fetch metadata from ipfs
+	try:
+		response = requests.get(token_uri, timeout=20)
+		if response.status_code == 200:
+		      metadata = response.json()
+		      # extract the image URI
+		      data['image'] = metadata.get('image', "")
+		      # extract the eye attribute
+		      attributes = metadata.get('attributes', [])
+		      for attribute in attributes:
+				if attribute.get('trait_type') == 'Eyes':
+				  data['eyes'] = attribute.get('value', "")
+				  break
+	    else:
+	      raise ValueError(f"Failed to fetch metadata from IPFS, status code: {response.status_code}")
+	except Exception as err:
+		raise ValueError(f"Failed to fetch metadata from IPFS for Ape ID {apeID}: {err}")
 
 
 
