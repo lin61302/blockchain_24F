@@ -6,7 +6,7 @@ import json
 import time
 
 bayc_address = "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D"
-contract_address = web3.toChecksumAddress(bayc_address)
+# contract_address = Web3.toChecksumAddress(bayc_address)
 
 #You will need the ABI to connect to the contract
 #The file 'abi.json' has the ABI for the bored ape contract
@@ -25,6 +25,7 @@ web3 = Web3(provider)
 if not web3.is_connected():
   raise ConnectionError(f"Unable to connect to Ethereum node at {api_url}")
 
+contract_address = web3.toChecksumAddress(bayc_address)
 contract = web3.eth.contract(address=contract_address, abi=abi)
 
 def get_ape_info(apeID):
