@@ -14,7 +14,7 @@ alchemy_url = f"https://eth-mainnet.alchemyapi.io/v2/{alchemy_token}"
 def connect_to_eth():
 	# TODO insert your code for this method from last week's assignment
 	url = alchemy_url
-  w3 = Web3(HTTPProvider(url))
+  	w3 = Web3(HTTPProvider(url))
 	assert w3.is_connected(), f"Failed to connect to provider at {url}"
 	return w3
 
