@@ -57,12 +57,12 @@ def get_ape_info(apeID):
 			metadata = response.json()
 			# extract the image URI
 			data['image'] = metadata.get('image', "")
-		      	# extract the eye attribute
-		      	attributes = metadata.get('attributes', [])
-		      	for attribute in attributes:
+			# extract the eye attribute
+			attributes = metadata.get('attributes', [])
+			for attribute in attributes:
 				if attribute.get('trait_type') == 'Eyes':
 					data['eyes'] = attribute.get('value', "")
-				      	break
+					break
 		else:
 			raise ValueError(f"Failed to fetch metadata from IPFS, status code: {response.status_code}")
 	except Exception as err:
