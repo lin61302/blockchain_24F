@@ -8,8 +8,7 @@ def signChallenge( challenge ):
     w3 = Web3()
 
     #This is the only line you need to modify
-    # sk = os.getenv('PRIVATE_KEY')
-    sk = '474d7cf21cb5cd83119901130c7f72ce9102cfa418ccb20aeb91df29708a3943'
+    sk = os.getenv('PRIVATE_KEY')
     if not sk:
         raise Exception("Private key not found in environment variables.")
 
