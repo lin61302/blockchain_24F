@@ -9,7 +9,7 @@ def signChallenge( challenge ):
 
     #This is the only line you need to modify
     sk = os.getenv('PRIVATE_KEY')
-    if not private_key:
+    if not sk:
         raise Exception("Private key not found in environment variables.")
 
     acct = w3.eth.account.from_key(sk)
