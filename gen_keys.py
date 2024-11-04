@@ -75,3 +75,10 @@ def get_keys(challenge, keyId=0, filename="eth_mnemonic.txt"):
 
     # Return the signature (as a hex string) and the Ethereum address
     return sig.signature.hex(), eth_addr
+if __name__ == "__main__":
+    for i in range(4):
+        challenge = os.urandom(64)
+        sig, addr= get_keys(challenge=challenge,keyId=i)
+        # print( addr )
+        print(f"Address: {addr}")
+        print(f"Signature: {sig}\n")
