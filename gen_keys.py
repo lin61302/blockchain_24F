@@ -1,5 +1,3 @@
-# gen_keys.py
-
 from web3 import Web3
 from eth_account import Account
 import eth_account
@@ -9,19 +7,17 @@ from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
 
 def get_keys(challenge, keyId=0, filename="eth_mnemonic.txt"):
     """
-    Retrieve the mnemonic from a file, derive the private key based on keyId,
-    sign the given challenge, and return the signature along with the associated Ethereum address.
+    Generate a stable private key
+    challenge - byte string
+    keyId (integer) - which key to use
+    filename - filename to read and store mnemonics
 
-    Parameters:
-    - challenge (bytes): The byte string to sign.
-    - keyId (int): Index of the mnemonic to use (0-based).
-    - filename (str): Filename to read the mnemonic phrases.
-
-    Returns:
-    - tuple: (signature (str), address (str))
+    Each mnemonic is stored on a separate line
+    If fewer than (keyId+1) mnemonics have been generated, generate a new one and return that
     """
 
-    # Encode the challenge as an Ethereum message
+    w3 = Web3()
+
     msg = eth_account.messages.encode_defunct(challenge)
 
     # Check if the mnemonic file exists
