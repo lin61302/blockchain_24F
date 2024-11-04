@@ -1,3 +1,5 @@
+# gen_keys.py
+
 from web3 import Web3
 from eth_account import Account
 import eth_account
@@ -73,14 +75,3 @@ def get_keys(challenge, keyId=0, filename="eth_mnemonic.txt"):
 
     # Return the signature (as a hex string) and the Ethereum address
     return sig.signature.hex(), eth_addr
-
-if __name__ == "__main__":
-    for i in range(4):
-        # Generate a random 64-byte challenge
-        challenge = os.urandom(64)
-        try:
-            sig, addr = get_keys(challenge=challenge, keyId=i)
-            print(f"Address {i}: {addr}")
-            print(f"Signature {i}: {sig}\n")
-        except (FileNotFoundError, IndexError, ValueError) as e:
-            print(f"Error for keyId {i}: {e}\n")
