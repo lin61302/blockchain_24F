@@ -3,7 +3,7 @@ from eth_account import Account
 import eth_account
 import os
 
-def get_keys(challenge,keyId = 0, filename = "private_key.txt"):
+def get_keys(challenge,keyId = 0, filename = "eth_mnemonic.txt"):
     """
     Generate a stable private key
     challenge - byte string
