@@ -5,7 +5,22 @@ import json
 from pathlib import Path
 from web3 import Web3
 from web3.middleware import geth_poa_middleware  # Necessary for POA chains
-from sympy import primerange
+# from sympy import primerange
+
+def is_prime(n):
+    """Check if a number is prime."""
+    if n <= 1:
+        return False
+    if n <= 3:
+        return True
+    if n % 2 == 0 or n % 3 == 0:
+        return False
+    i = 5
+    while i * i <= n:
+        if n % i == 0 or n % (i + 2) == 0:
+            return False
+        i += 6
+    return True
 
 
 def merkle_assignment():
@@ -89,14 +104,20 @@ def generate_primes(num_primes):
 
     #TODO YOUR CODE HERE
 
-    current = 2 
+    # current = 2 
 
+    # while len(primes_list) < num_primes:
+    #     next_primes = list(primerange(current, current * 2))
+    #     primes_list.extend(next_primes)
+    #     current = primes_list[-1] + 1  # Update current to the next number after the last prime found
+
+    # return primes_list[:num_primes]
+    num = 2
     while len(primes_list) < num_primes:
-        next_primes = list(primerange(current, current * 2))
-        primes_list.extend(next_primes)
-        current = primes_list[-1] + 1  # Update current to the next number after the last prime found
-
-    return primes_list[:num_primes]
+        if is_prime(num):
+            primes_list.append(num)
+        num += 1
+    return primes_list
 
 
 def convert_leaves(primes_list):
