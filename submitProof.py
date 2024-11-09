@@ -237,6 +237,9 @@ def send_signed_msg(proof, random_leaf):
     acct = get_account()
     address, abi = get_contract_info(chain)
     w3 = connect_to(chain)
+    if w3 is None:
+        print(f"Failed to connect to the {chain} network.")
+        return '0x'
 
     # TODO YOUR CODE HERE
     # Initialize contract
@@ -250,7 +253,7 @@ def send_signed_msg(proof, random_leaf):
     leaf_hex = random_leaf.hex()
 
     try:
-        gas_estimate = contract.functions.submit(proof_bytes32, leaf_bytes32).estimateGas({
+        gas_estimate = contract.functions.submit(proof_bytes32, leaf_bytes32).estimate_gas({
             'from': acct.address
         })
         txn = contract.functions.submit(proof_bytes32, leaf_bytes32).build_transaction({
