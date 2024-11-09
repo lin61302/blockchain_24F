@@ -260,7 +260,7 @@ def send_signed_msg(proof, random_leaf):
             'from': acct.address,
             'nonce': w3.eth.get_transaction_count(acct.address),
             'gas': gas_estimate + 10000,  # Add buffer to gas estimate
-            'gasPrice': w3.toWei('5', 'gwei')  
+            'gasPrice': w3.to_wei('5', 'gwei')  
         })
     except Exception as e:
         print(f"Gas estimation failed: {e}")
