@@ -274,6 +274,19 @@ def send_signed_msg(proof, random_leaf):
     except Exception as e:
         print(f"Transaction failed: {e}")
         return '0x'
+    
+    # Wait for the transaction to be mined
+    try:
+        tx_receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)  # Wait up to 2 minutes
+        if tx_receipt.status == 1:
+            print(f"Transaction successful with hash: {tx_hash.hex()}")
+            return tx_hash.hex()
+        else:
+            print(f"Transaction failed (status=0) with hash: {tx_hash.hex()}")
+            return '0x'
+    except Exception as e:
+        print(f"Error waiting for transaction receipt: {e}")
+        return '0x'
 
 
 # Helper functions that do not need to be modified
