@@ -30,8 +30,8 @@ contract Destination is AccessControl, ReentrancyGuard {
     event Unwrap(
         address indexed underlying_token,
         address indexed wrapped_token,
-        address frm,
-        address indexed to,
+        address indexed frm,
+        address to,
         uint256 amount
     );
 
@@ -134,14 +134,14 @@ contract Destination is AccessControl, ReentrancyGuard {
             "Wrapped token not recognized"
         );
 
-        // Get the underlying token address
-        address underlyingTokenAddress = wrapped_tokens[_wrapped_token];
-
         // Instantiate the BridgeToken contract
         BridgeToken wrappedToken = BridgeToken(_wrapped_token);
 
         // Burn the BridgeTokens from the caller
-        wrappedToken.burnFrom(msg.sender, _amount);
+        wrappedToken.burn(_amount);
+
+        // Get the underlying token address
+        address underlyingTokenAddress = wrapped_tokens[_wrapped_token];
 
         // Emit Unwrap event
         emit Unwrap(underlyingTokenAddress, _wrapped_token, msg.sender, _recipient, _amount);
@@ -156,5 +156,13 @@ contract Destination is AccessControl, ReentrancyGuard {
      */
     function getRegisteredTokenCount() public view returns (uint256) {
         return tokens.length;
+    }
+
+    /**
+     * @dev Utility function to get the list of all registered underlying tokens.
+     * @return An array of underlying token addresses.
+     */
+    function getAllUnderlyingTokens() public view returns (address[] memory) {
+        return tokens;
     }
 }
