@@ -14,10 +14,10 @@ contract Destination is AccessControl {
     bytes32 public constant CREATOR_ROLE = keccak256("CREATOR_ROLE");
 
     // Mapping from underlying token address to wrapped token address
-    mapping(address => address) public underlying_tokens;
+    mapping(address => address) public wrapped_tokens;
 
     // Mapping from wrapped token address to underlying token address
-    mapping(address => address) public wrapped_tokens;
+    mapping(address => address) public underlying_tokens;
 
     // Array to keep track of all registered underlying tokens
     address[] public tokens;
@@ -66,7 +66,7 @@ contract Destination is AccessControl {
     ) public onlyRole(CREATOR_ROLE) returns (address) {
         require(_underlying_token != address(0), "Invalid underlying token address");
         require(
-            underlying_tokens[_underlying_token] == address(0),
+            wrapped_tokens[_underlying_token] == address(0),
             "BridgeToken already exists for this underlying token"
         );
 
@@ -75,9 +75,9 @@ contract Destination is AccessControl {
 
         // Store mappings correctly:
         // Map underlying_token to bridgeToken
-        underlying_tokens[_underlying_token] = address(bridgeToken);
+        wrapped_tokens[_underlying_token] = address(bridgeToken);
         // Map bridgeToken to underlying_token
-        wrapped_tokens[address(bridgeToken)] = _underlying_token;
+        underlying_tokens[address(bridgeToken)] = _underlying_token;
 
         // Add to tokens array
         tokens.push(_underlying_token);
@@ -104,12 +104,12 @@ contract Destination is AccessControl {
         require(_recipient != address(0), "Invalid recipient address");
         require(_amount > 0, "Amount must be greater than zero");
         require(
-            underlying_tokens[_underlying_token] != address(0),
+            wrapped_tokens[_underlying_token] != address(0),
             "Underlying token not registered"
         );
 
         // Get the wrapped token address
-        address wrappedTokenAddress = underlying_tokens[_underlying_token];
+        address wrappedTokenAddress = wrapped_tokens[_underlying_token];
         BridgeToken wrappedToken = BridgeToken(wrappedTokenAddress);
 
         // Mint BridgeTokens to the recipient
@@ -137,12 +137,12 @@ contract Destination is AccessControl {
 
         // Verify that the wrapped token is recognized and mapped to an underlying token
         require(
-            wrapped_tokens[_wrapped_token] != address(0),
+            underlying_tokens[_wrapped_token] == address(0) ? false : true,
             "Wrapped token not recognized"
         );
 
         // Get the underlying token address
-        address underlyingTokenAddress = wrapped_tokens[_wrapped_token];
+        address underlyingTokenAddress = underlying_tokens[_wrapped_token];
 
         // Instantiate the BridgeToken contract
         BridgeToken wrappedToken = BridgeToken(_wrapped_token);
