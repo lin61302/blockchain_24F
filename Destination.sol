@@ -2,9 +2,10 @@
 pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./BridgeToken.sol";
 
-contract Destination is AccessControl {
+contract Destination is AccessControl, ReentrancyGuard {
     // Define roles using keccak256 hash of role names
     bytes32 public constant WARDEN_ROLE = keccak256("BRIDGE_WARDEN_ROLE");
     bytes32 public constant CREATOR_ROLE = keccak256("CREATOR_ROLE");
@@ -15,7 +16,7 @@ contract Destination is AccessControl {
     // Mapping from wrapped token address to underlying token address
     mapping(address => address) public wrapped_tokens;
 
-    // Array to keep track of all registered tokens
+    // Array to keep track of all registered underlying tokens
     address[] public tokens;
 
     // Events
@@ -40,8 +41,6 @@ contract Destination is AccessControl {
      */
     constructor(address admin) {
         require(admin != address(0), "Admin address cannot be zero");
-
-        // Grant roles to the admin
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(CREATOR_ROLE, admin);
         _grantRole(WARDEN_ROLE, admin);
@@ -93,7 +92,7 @@ contract Destination is AccessControl {
         address _underlying_token,
         address _recipient,
         uint256 _amount
-    ) public onlyRole(WARDEN_ROLE) {
+    ) public onlyRole(WARDEN_ROLE) nonReentrant {
         require(_underlying_token != address(0), "Invalid underlying token address");
         require(_recipient != address(0), "Invalid recipient address");
         require(_amount > 0, "Amount must be greater than zero");
@@ -124,7 +123,7 @@ contract Destination is AccessControl {
         address _wrapped_token,
         address _recipient,
         uint256 _amount
-    ) public {
+    ) public nonReentrant {
         require(_wrapped_token != address(0), "Invalid BridgeToken address");
         require(_recipient != address(0), "Invalid recipient address");
         require(_amount > 0, "Amount must be greater than zero");
@@ -152,7 +151,7 @@ contract Destination is AccessControl {
     }
 
     /**
-     * @dev Returns the total number of registered tokens.
+     * @dev Returns the total number of registered underlying tokens.
      * @return The count of underlying tokens registered.
      */
     function getRegisteredTokenCount() public view returns (uint256) {
