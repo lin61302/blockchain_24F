@@ -152,8 +152,8 @@ contract Destination is AccessControl {
         // Instantiate the BridgeToken contract
         BridgeToken wrappedToken = BridgeToken(_wrapped_token);
 
-        // Burn the BridgeTokens from the caller
-        wrappedToken.burn(_amount);
+        // Burn the BridgeTokens from the caller using burnFrom
+        wrappedToken.burnFrom(msg.sender, _amount);
 
         // Emit Unwrap event
         emit Unwrap(underlyingTokenAddress, _wrapped_token, msg.sender, _recipient, _amount);
