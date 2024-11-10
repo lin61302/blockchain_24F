@@ -137,7 +137,7 @@ contract Destination is AccessControl {
 
         // Verify that the wrapped token is recognized and mapped to an underlying token
         require(
-            underlying_tokens[_wrapped_token] == address(0) ? false : true,
+            underlying_tokens[_wrapped_token] != address(0),
             "Wrapped token not recognized"
         );
 
