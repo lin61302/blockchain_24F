@@ -73,14 +73,16 @@ contract Destination is AccessControl {
         // Deploy a new BridgeToken contract
         BridgeToken bridgeToken = new BridgeToken(_underlying_token, name, symbol, address(this));
 
-        // Store mappings
+        // Store mappings correctly:
+        // Map underlying_token to bridgeToken
         underlying_tokens[_underlying_token] = address(bridgeToken);
+        // Map bridgeToken to underlying_token
         wrapped_tokens[address(bridgeToken)] = _underlying_token;
 
         // Add to tokens array
         tokens.push(_underlying_token);
 
-        // Emit Creation event
+        // Emit Creation event with the actual bridgeToken address
         emit Creation(_underlying_token, address(bridgeToken));
 
         return address(bridgeToken);
@@ -150,8 +152,5 @@ contract Destination is AccessControl {
 
         // Emit Unwrap event
         emit Unwrap(underlyingTokenAddress, _wrapped_token, msg.sender, _recipient, _amount);
-
-        // Note: Actual transfer of underlying tokens back to the recipient on the source chain
-        // Typically handled off-chain or via cross-chain messaging protocols
     }
 }
