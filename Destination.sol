@@ -1,22 +1,51 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./BridgeToken.sol";
 
+/**
+ * @title Destination
+ * @dev Contract that manages the creation, wrapping, and unwrapping of BridgeTokens.
+ */
 contract Destination is AccessControl {
+    // Define roles using keccak256 hash of role names
     bytes32 public constant WARDEN_ROLE = keccak256("BRIDGE_WARDEN_ROLE");
     bytes32 public constant CREATOR_ROLE = keccak256("CREATOR_ROLE");
+
+    // Mapping from underlying token address to wrapped token address
     mapping(address => address) public underlying_tokens;
+
+    // Mapping from wrapped token address to underlying token address
     mapping(address => address) public wrapped_tokens;
+
+    // Array to keep track of all registered underlying tokens
     address[] public tokens;
 
+    // Events
     event Creation(address indexed underlying_token, address indexed wrapped_token);
-    event Wrap(address indexed underlying_token, address indexed wrapped_token, address indexed to, uint256 amount);
-    event Unwrap(address indexed underlying_token, address indexed wrapped_token, address frm, address indexed to, uint256 amount);
+    event Wrap(
+        address indexed underlying_token,
+        address indexed wrapped_token,
+        address indexed to,
+        uint256 amount
+    );
+    event Unwrap(
+        address indexed underlying_token,
+        address indexed wrapped_token,
+        address frm,
+        address indexed to,
+        uint256 amount
+    );
 
+    /**
+     * @dev Constructor that sets up roles.
+     * @param admin The address that will have DEFAULT_ADMIN_ROLE, CREATOR_ROLE, and WARDEN_ROLE.
+     */
     constructor(address admin) {
+        require(admin != address(0), "Admin address cannot be zero");
+
+        // Grant DEFAULT_ADMIN_ROLE, CREATOR_ROLE, and WARDEN_ROLE to the admin
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(CREATOR_ROLE, admin);
         _grantRole(WARDEN_ROLE, admin);
@@ -121,5 +150,8 @@ contract Destination is AccessControl {
 
         // Emit Unwrap event
         emit Unwrap(underlyingTokenAddress, _wrapped_token, msg.sender, _recipient, _amount);
+
+        // Note: Actual transfer of underlying tokens back to the recipient on the source chain
+        // Typically handled off-chain or via cross-chain messaging protocols
     }
 }
