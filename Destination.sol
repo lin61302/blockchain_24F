@@ -70,8 +70,13 @@ contract Destination is AccessControl {
             "BridgeToken already exists for this underlying token"
         );
 
-        // Deploy a new BridgeToken contract
-        BridgeToken bridgeToken = new BridgeToken(_underlying_token, name, symbol, address(this));
+        // Deploy a new BridgeToken contract, setting Destination as admin
+        BridgeToken bridgeToken = new BridgeToken(
+            _underlying_token,
+            name,
+            symbol,
+            address(this)
+        );
 
         // Store mappings correctly:
         // Map underlying_token to bridgeToken
@@ -152,5 +157,26 @@ contract Destination is AccessControl {
 
         // Emit Unwrap event
         emit Unwrap(underlyingTokenAddress, _wrapped_token, msg.sender, _recipient, _amount);
+
+        // Note: Actual transfer of underlying tokens back to the recipient on the source chain
+        // Typically handled off-chain or via cross-chain messaging protocols
+    }
+
+    /**
+     * @dev Returns the number of registered underlying tokens.
+     * @return The count of underlying tokens.
+     */
+    function getTokenCount() public view returns (uint256) {
+        return tokens.length;
+    }
+
+    /**
+     * @dev Returns the underlying token at a specific index in the tokens array.
+     * @param index The index in the tokens array.
+     * @return The address of the underlying token.
+     */
+    function getUnderlyingToken(uint256 index) public view returns (address) {
+        require(index < tokens.length, "Index out of bounds");
+        return tokens[index];
     }
 }
