@@ -1,39 +1,53 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./BridgeToken.sol";
 
 contract Destination is AccessControl {
+    // Define roles using keccak256 hash of role names
     bytes32 public constant WARDEN_ROLE = keccak256("BRIDGE_WARDEN_ROLE");
     bytes32 public constant CREATOR_ROLE = keccak256("CREATOR_ROLE");
-	mapping( address => address) public underlying_tokens;
-	mapping( address => address) public wrapped_tokens;
-	address[] public tokens;
 
-	event Creation( address indexed underlying_token, address indexed wrapped_token );
-	event Wrap( address indexed underlying_token, address indexed wrapped_token, address indexed to, uint256 amount );
-	event Unwrap( address indexed underlying_token, address indexed wrapped_token, address frm, address indexed to, uint256 amount );
+    // Mapping from underlying token address to wrapped token address
+    mapping(address => address) public underlying_tokens;
 
-    constructor( address admin ) {
+    // Mapping from wrapped token address to underlying token address
+    mapping(address => address) public wrapped_tokens;
+
+    // Array to keep track of all registered tokens
+    address[] public tokens;
+
+    // Events
+    event Creation(address indexed underlying_token, address indexed wrapped_token);
+    event Wrap(
+        address indexed underlying_token,
+        address indexed wrapped_token,
+        address indexed to,
+        uint256 amount
+    );
+    event Unwrap(
+        address indexed underlying_token,
+        address indexed wrapped_token,
+        address frm,
+        address indexed to,
+        uint256 amount
+    );
+
+    /**
+     * @dev Constructor that sets up roles.
+     * @param admin The address that will have DEFAULT_ADMIN_ROLE, CREATOR_ROLE, and WARDEN_ROLE.
+     */
+    constructor(address admin) {
+        require(admin != address(0), "Admin address cannot be zero");
+
+        // Grant roles to the admin
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(CREATOR_ROLE, admin);
         _grantRole(WARDEN_ROLE, admin);
     }
 
-	// function wrap(address _underlying_token, address _recipient, uint256 _amount ) public onlyRole(WARDEN_ROLE) {
-	// 	//YOUR CODE HERE
-	// }
-
-	// function unwrap(address _wrapped_token, address _recipient, uint256 _amount ) public {
-	// 	//YOUR CODE HERE
-	// }
-
-	// function createToken(address _underlying_token, string memory name, string memory symbol ) public onlyRole(CREATOR_ROLE) returns(address) {
-	// 	//YOUR CODE HERE
-	// }
-  /**
+    /**
      * @dev Creates a new BridgeToken for a given underlying token.
      * Can only be called by accounts with CREATOR_ROLE.
      * @param _underlying_token The address of the underlying token on the source chain.
@@ -98,7 +112,7 @@ contract Destination is AccessControl {
         // Emit Wrap event
         emit Wrap(_underlying_token, wrappedTokenAddress, _recipient, _amount);
     }
-    
+
     /**
      * @dev Burns BridgeTokens from the caller and initiates the unwrap process.
      * Anyone can call this function, but only tokens they own can be burned.
@@ -144,9 +158,4 @@ contract Destination is AccessControl {
     function getRegisteredTokenCount() public view returns (uint256) {
         return tokens.length;
     }
-
-
-
 }
-
-
