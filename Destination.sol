@@ -30,10 +30,11 @@ contract Destination is AccessControl, ReentrancyGuard {
     event Unwrap(
         address indexed underlying_token,
         address indexed wrapped_token,
-        address frm,
-        address indexed to,
+        address indexed frm,
+        address to,
         uint256 amount
     );
+    event Debug(string message, address addr, uint256 num);
 
     /**
      * @dev Constructor that sets up roles.
@@ -44,6 +45,7 @@ contract Destination is AccessControl, ReentrancyGuard {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(CREATOR_ROLE, admin);
         _grantRole(WARDEN_ROLE, admin);
+        emit Debug("Constructor executed", admin, 0);
     }
 
     /**
@@ -67,13 +69,16 @@ contract Destination is AccessControl, ReentrancyGuard {
 
         // Deploy a new BridgeToken contract
         BridgeToken bridgeToken = new BridgeToken(_underlying_token, name, symbol, address(this));
+        emit Debug("BridgeToken deployed", address(bridgeToken), 0);
 
         // Store mappings
         underlying_tokens[_underlying_token] = address(bridgeToken);
         wrapped_tokens[address(bridgeToken)] = _underlying_token;
+        emit Debug("Mappings updated", _underlying_token, 0);
 
         // Add to tokens array
         tokens.push(_underlying_token);
+        emit Debug("Underlying token added to tokens array", _underlying_token, tokens.length);
 
         // Emit Creation event
         emit Creation(_underlying_token, address(bridgeToken));
@@ -103,10 +108,15 @@ contract Destination is AccessControl, ReentrancyGuard {
 
         // Get the wrapped token address
         address wrappedTokenAddress = underlying_tokens[_underlying_token];
+        require(wrappedTokenAddress != address(0), "Wrapped token address is zero");
+        emit Debug("Retrieved wrappedTokenAddress", wrappedTokenAddress, 0);
+
         BridgeToken wrappedToken = BridgeToken(wrappedTokenAddress);
+        emit Debug("BridgeToken instance created", wrappedTokenAddress, 0);
 
         // Mint BridgeTokens to the recipient
         wrappedToken.mint(_recipient, _amount);
+        emit Debug("Minted tokens", _recipient, _amount);
 
         // Emit Wrap event
         emit Wrap(_underlying_token, wrappedTokenAddress, _recipient, _amount);
@@ -136,12 +146,15 @@ contract Destination is AccessControl, ReentrancyGuard {
 
         // Get the underlying token address
         address underlyingTokenAddress = wrapped_tokens[_wrapped_token];
+        emit Debug("Underlying token address retrieved", underlyingTokenAddress, 0);
 
         // Instantiate the BridgeToken contract
         BridgeToken wrappedToken = BridgeToken(_wrapped_token);
+        emit Debug("BridgeToken instance created for burning", _wrapped_token, 0);
 
         // Burn the BridgeTokens from the caller
         wrappedToken.burn(_amount);
+        emit Debug("Burned tokens", msg.sender, _amount);
 
         // Emit Unwrap event
         emit Unwrap(underlyingTokenAddress, _wrapped_token, msg.sender, _recipient, _amount);
@@ -156,5 +169,13 @@ contract Destination is AccessControl, ReentrancyGuard {
      */
     function getRegisteredTokenCount() public view returns (uint256) {
         return tokens.length;
+    }
+
+    /**
+     * @dev Returns all registered underlying tokens.
+     * @return An array of underlying token addresses.
+     */
+    function getAllUnderlyingTokens() public view returns (address[] memory) {
+        return tokens;
     }
 }
