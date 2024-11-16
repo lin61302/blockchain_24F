@@ -109,7 +109,7 @@ contract AMM is AccessControl{
 		require( amtA > 0 || amtB > 0, 'Cannot provide 0 liquidity' );
 		//YOUR CODE HERE
     
-		// Transfer tokenA from the sender to the AMM contract
+		/// Transfer tokenA from the sender to the AMM contract
 		    if (amtA > 0) {
 		        bool successA = ERC20(tokenA).transferFrom(msg.sender, address(this), amtA);
 		        require(successA, "Transfer of Token A failed");
@@ -125,10 +125,11 @@ contract AMM is AccessControl{
 		    if (invariant == 0) {
 		        invariant = amtA * amtB;
 		    } else {
+		        // Calculate previous reserves before the addition
+		        uint256 previousA = ERC20(tokenA).balanceOf(address(this)) - amtA;
+		        uint256 previousB = ERC20(tokenB).balanceOf(address(this)) - amtB;
 		        // Ensure that the liquidity is added in the correct ratio to maintain the invariant
-		        uint256 currentA = ERC20(tokenA).balanceOf(address(this));
-		        uint256 currentB = ERC20(tokenB).balanceOf(address(this));
-		        require(currentA * amtB == currentB * amtA, "Invariant not maintained");
+		        require(amtA * previousB == amtB * previousA, "Invariant not maintained");
 		    }
 
     
