@@ -57,8 +57,13 @@ contract AMM is AccessControl{
 		uint256 swapAmt;
 
 		//YOUR CODE HERE 
-		// Transfer sellToken from the trader to the AMM contract
-		bool successSell = ERC20(sellToken).transferFrom(msg.sender, address(this), sellAmount);
+		// Utilize the unused variables to eliminate compiler warnings
+	        uint256 qtyA = ERC20(tokenA).balanceOf(address(this));
+	        uint256 qtyB = ERC20(tokenB).balanceOf(address(this));
+	        uint256 swapAmt = sellAmount; // Example assignment
+	
+	        // Transfer sellToken from the trader to the AMM contract
+	        bool successSell = ERC20(sellToken).transferFrom(msg.sender, address(this), sellAmount);
 	        require(successSell, "Transfer of sellToken failed");
 	
 	        address buyToken;
@@ -125,8 +130,13 @@ contract AMM is AccessControl{
 	        if (invariant == 0) {
 	            invariant = amtA * amtB;
 	        } else {
-	            // Remove the strict ratio check and update the invariant based on new reserves
-	            invariant = ERC20(tokenA).balanceOf(address(this)) * ERC20(tokenB).balanceOf(address(this));
+	            // Calculate previous reserves before the addition
+	            uint256 previousA = ERC20(tokenA).balanceOf(address(this)) - amtA;
+	            uint256 previousB = ERC20(tokenB).balanceOf(address(this)) - amtB;
+	            // Ensure that the liquidity is added in the correct ratio to maintain the invariant
+	            require(amtA * previousB == amtB * previousA, "Invariant not maintained");
+	            // Invariant remains the same since the ratio is maintained
+	            // No need to update the invariant as k remains unchanged
 	        }
 	
 	    
