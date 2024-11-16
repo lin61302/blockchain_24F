@@ -52,15 +52,12 @@ contract AMM is AccessControl{
 		require( sellToken == tokenA || sellToken == tokenB, 'Invalid token' );
 		require( sellAmount > 0, 'Cannot trade 0' );
 		require( invariant > 0, 'No liquidity' );
-		uint256 qtyA;
-		uint256 qtyB;
-		uint256 swapAmt;
 
 		//YOUR CODE HERE 
-		// Utilize the unused variables to eliminate compiler warnings
-	        uint256 qtyA = ERC20(tokenA).balanceOf(address(this));
-	        uint256 qtyB = ERC20(tokenB).balanceOf(address(this));
-	        uint256 swapAmt = sellAmount; // Example assignment
+		// Assign values to the already declared variables to eliminate compiler warnings
+	        qtyA = ERC20(tokenA).balanceOf(address(this));
+	        qtyB = ERC20(tokenB).balanceOf(address(this));
+	        swapAmt = sellAmount; // Example assignment based on trade amount
 	
 	        // Transfer sellToken from the trader to the AMM contract
 	        bool successSell = ERC20(sellToken).transferFrom(msg.sender, address(this), sellAmount);
@@ -136,7 +133,6 @@ contract AMM is AccessControl{
 	            // Ensure that the liquidity is added in the correct ratio to maintain the invariant
 	            require(amtA * previousB == amtB * previousA, "Invariant not maintained");
 	            // Invariant remains the same since the ratio is maintained
-	            // No need to update the invariant as k remains unchanged
 	        }
 	
 	    
