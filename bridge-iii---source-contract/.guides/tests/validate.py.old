@@ -1,0 +1,54 @@
+import os
+import json
+import shutil
+import subprocess
+import re
+
+project_name = "source"
+
+def validate(dir_string, retry=0):
+    test_path = f"/home/codio/workspace/.guides/secure/{project_name}"
+    student_files = ['Source.sol']
+
+    for f in student_files:
+        prefixes = [dir_string,f"{dir_string}/{project_name}/src"]
+        for p in prefixes:
+            try:
+                shutil.copyfile(f"{p}/{f}",f"{test_path}/src/{f}")
+            except Exception as e:
+                pass
+        if not os.path.isfile(f"{test_path}/src/{f}"):
+            print( f"Failed to copy file {f}" )
+            print( f"Are you sure it's in your repository?" )
+
+    num_passed = num_failed = 0
+    max_retries = 5
+    try: 
+        proc = subprocess.check_output( ['forge','test'], cwd=test_path )
+    except Exception as e:
+        if retry < max_retries:
+            return validate( dir_string, retry=retry+1)
+        else:
+            print( "Could not run 'forge test'" )
+            return 0
+
+    output = proc.decode('utf-8').splitlines()[-1]
+    rmatch = re.search('(\d+) passed', output )
+    if rmatch:
+        num_passed = int(rmatch.group(1))
+        print( f"num_passed = {num_passed}" )
+    rmatch = re.search('(\d+) failed', output )
+    if rmatch:
+        num_failed= int(rmatch.group(1))
+        print( f"num_failed = {num_failed}" )
+
+    score = 0
+    if num_passed + num_failed > 0:
+        score = (100.0*num_passed)/(num_passed+num_failed)
+
+    print( f"Score = {score}" )
+    return score
+ 
+
+if __name__ == '__main__':
+    validate(f"/home/codio/workspace/{project_name}/src/")
