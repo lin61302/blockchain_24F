@@ -54,10 +54,10 @@ contract AMM is AccessControl{
 		require( invariant > 0, 'No liquidity' );
 
 		//YOUR CODE HERE 
-		// Assign values to the already declared variables to eliminate compiler warnings
-	        qtyA = ERC20(tokenA).balanceOf(address(this));
-	        qtyB = ERC20(tokenB).balanceOf(address(this));
-	        swapAmt = sellAmount; // Example assignment based on trade amount
+		// Declare and initialize variables to eliminate compiler warnings
+	        uint256 qtyA = ERC20(tokenA).balanceOf(address(this));
+	        uint256 qtyB = ERC20(tokenB).balanceOf(address(this));
+	        uint256 swapAmt = sellAmount; // Example assignment based on trade amount
 	
 	        // Transfer sellToken from the trader to the AMM contract
 	        bool successSell = ERC20(sellToken).transferFrom(msg.sender, address(this), sellAmount);
@@ -100,7 +100,7 @@ contract AMM is AccessControl{
 	
 	        // Update the invariant
 	        uint256 new_invariant = ERC20(tokenA).balanceOf(address(this)) * ERC20(tokenB).balanceOf(address(this));
-	        require(new_invariant >= invariant, 'Bad trade');
+	        require(new_invariant >= invariant, "Bad trade");
 	        invariant = new_invariant;
 	    }
 
@@ -111,7 +111,10 @@ contract AMM is AccessControl{
 		require( amtA > 0 || amtB > 0, 'Cannot provide 0 liquidity' );
 		//YOUR CODE HERE
     
-		// Transfer tokenA from the sender to the AMM contract
+		// Enforce that only accounts with LP_ROLE can provide liquidity
+	        require(hasRole(LP_ROLE, msg.sender), "Caller is not an LP");
+	
+	        // Transfer tokenA from the sender to the AMM contract
 	        if (amtA > 0) {
 	            bool successA = ERC20(tokenA).transferFrom(msg.sender, address(this), amtA);
 	            require(successA, "Transfer of Token A failed");
