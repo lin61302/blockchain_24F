@@ -58,53 +58,54 @@ contract AMM is AccessControl{
 
 		//YOUR CODE HERE 
     
-    
+    			
 		address buyToken;
 		uint256 buyAmount;
 		
 		// Determine which token is being bought
-		if (sellToken == tokenA) {
-		    buyToken = tokenB;
-		} else {
-		    buyToken = tokenA;
+		    if (sellToken == tokenA) {
+			buyToken = tokenB;
+		    } else {
+			buyToken = tokenA;
+		    }
+		
+		    // Transfer sellToken from the trader to the AMM contract
+		    bool successSell = ERC20(sellToken).transferFrom(msg.sender, address(this), sellAmount);
+		    require(successSell, "Transfer of sellToken failed");
+		
+		    // Calculate the effective sell amount after applying the fee
+		    uint256 effectiveSellAmount = (sellAmount * (10000 - feebps)) / 10000;
+		
+		    // Fetch updated reserves after the sellToken has been transferred
+		    uint256 reserveA = ERC20(tokenA).balanceOf(address(this));
+		    uint256 reserveB = ERC20(tokenB).balanceOf(address(this));
+		
+		    if (sellToken == tokenA) {
+			// Calculate buyAmount using the invariant: k = (Ai + ΔA') * (Bi - ΔB)
+			buyAmount = reserveB - (invariant / (reserveA + effectiveSellAmount));
+		    } else {
+			// Calculate buyAmount using the invariant: k = (Ai - ΔB') * (Bi + ΔB')
+			buyAmount = reserveA - (invariant / (reserveB + effectiveSellAmount));
+		    }
+		
+		    // Ensure that the AMM has enough tokens to fulfill the trade
+		    require(buyAmount > 0, "Insufficient output amount");
+		
+		    // Transfer buyAmount of the other token to the trader
+		    bool successBuy = ERC20(buyToken).transfer(msg.sender, buyAmount);
+		    require(successBuy, "Transfer of buyToken failed");
+		
+		    // Emit the Swap event
+		    emit Swap(sellToken, buyToken, sellAmount, buyAmount);
+		
+		    // Update the invariant
+		    uint256 newReserveA = ERC20(tokenA).balanceOf(address(this));
+		    uint256 newReserveB = ERC20(tokenB).balanceOf(address(this));
+		    uint256 newInvariant = newReserveA * newReserveB;
+		
+		    require(newInvariant >= invariant, "Invariant violation after trade");
+		    invariant = newInvariant;
 		}
-		
-		// Transfer sellToken from the trader to the AMM contract
-		bool successSell = ERC20(sellToken).transferFrom(msg.sender, address(this), sellAmount);
-		require(successSell, "Transfer of sellToken failed");
-		
-		// Calculate the effective sell amount after applying the fee
-		uint256 effectiveSellAmount = (sellAmount * (10000 - feebps)) / 10000;
-		
-		// Fetch updated reserves after the sellToken has been transferred
-		uint256 reserveA = ERC20(tokenA).balanceOf(address(this));
-		uint256 reserveB = ERC20(tokenB).balanceOf(address(this));
-		
-		if (sellToken == tokenA) {
-		    // Calculate buyAmount using the invariant: k = (Ai + ΔA') * (Bi - ΔB)
-		    buyAmount = reserveB - (invariant / (reserveA + effectiveSellAmount));
-		} else {
-		    // Calculate buyAmount using the invariant: k = (Ai - ΔB') * (Bi + ΔB')
-		    buyAmount = reserveA - (invariant / (reserveB + effectiveSellAmount));
-		}
-		
-		// Ensure that the AMM has enough tokens to fulfill the trade
-		require(buyAmount > 0, "Insufficient output amount");
-		
-		// Transfer buyAmount of the other token to the trader
-		bool successBuy = ERC20(buyToken).transfer(msg.sender, buyAmount);
-		require(successBuy, "Transfer of buyToken failed");
-		
-		// Emit the Swap event
-		emit Swap(sellToken, buyToken, sellAmount, buyAmount);
-		
-		// Update the invariant
-		uint256 newReserveA = ERC20(tokenA).balanceOf(address(this));
-		uint256 newReserveB = ERC20(tokenB).balanceOf(address(this));
-		uint256 newInvariant = newReserveA * newReserveB;
-		
-		require(newInvariant >= invariant, "Invariant violation after trade");
-		invariant = newInvariant;}
     
 
 	// 	uint256 new_invariant = ERC20(tokenA).balanceOf(address(this))*ERC20(tokenB).balanceOf(address(this));
