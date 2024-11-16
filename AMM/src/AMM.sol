@@ -118,27 +118,29 @@ contract AMM is AccessControl{
 	function provideLiquidity( uint256 amtA, uint256 amtB ) public {
 		require( amtA > 0 || amtB > 0, 'Cannot provide 0 liquidity' );
 		//YOUR CODE HERE
-    // Transfer tokenA from the sender to the AMM contract
-    if (amtA > 0) {
-        bool successA = ERC20(tokenA).transferFrom(msg.sender, address(this), amtA);
-        require(successA, "Transfer of Token A failed");
-    }
+    
+		// Transfer tokenA from the sender to the AMM contract
+		if (amtA > 0) {
+		    bool successA = ERC20(tokenA).transferFrom(msg.sender, address(this), amtA);
+		    require(successA, "Transfer of Token A failed");
+		}
+		
+		// Transfer tokenB from the sender to the AMM contract
+		if (amtB > 0) {
+		    bool successB = ERC20(tokenB).transferFrom(msg.sender, address(this), amtB);
+		    require(successB, "Transfer of Token B failed");
+		}
+		
+		// If this is the first liquidity provision, set the invariant
+		if (invariant == 0) {
+		    invariant = amtA * amtB;
+		} else {
+		    // Ensure that the liquidity is added in the correct ratio to maintain the invariant
+		    uint256 currentA = ERC20(tokenA).balanceOf(address(this));
+		    uint256 currentB = ERC20(tokenB).balanceOf(address(this));
+		    require(currentA * amtB == currentB * amtA, "Invariant not maintained");
+		}
 
-    // Transfer tokenB from the sender to the AMM contract
-    if (amtB > 0) {
-        bool successB = ERC20(tokenB).transferFrom(msg.sender, address(this), amtB);
-        require(successB, "Transfer of Token B failed");
-    }
-
-    // If this is the first liquidity provision, set the invariant
-    if (invariant == 0) {
-        invariant = amtA * amtB;
-    } else {
-        // Ensure that the liquidity is added in the correct ratio to maintain the invariant
-        uint256 currentA = ERC20(tokenA).balanceOf(address(this));
-        uint256 currentB = ERC20(tokenB).balanceOf(address(this));
-        require(currentA * amtB == currentB * amtA, "Invariant not maintained");
-    }
     
 		emit LiquidityProvision( msg.sender, amtA, amtB );
 	}
