@@ -54,54 +54,33 @@ contract AMM is AccessControl{
 		require( invariant > 0, 'No liquidity' );
 
 		//YOUR CODE HERE 
-		// Declare and initialize variables to eliminate compiler warnings
-	        uint256 qtyA = ERC20(tokenA).balanceOf(address(this));
-	        uint256 qtyB = ERC20(tokenB).balanceOf(address(this));
-	        uint256 swapAmt = sellAmount; // Example assignment based on trade amount
-	
-	        // Transfer sellToken from the trader to the AMM contract
-	        bool successSell = ERC20(sellToken).transferFrom(msg.sender, address(this), sellAmount);
-	        require(successSell, "Transfer of sellToken failed");
-	
-	        address buyToken;
-	        uint256 buyAmount;
-	
-	        // Determine which token is being bought
-	        if (sellToken == tokenA) {
-	            buyToken = tokenB;
-	        } else {
-	            buyToken = tokenA;
-	        }
-	
-	        // Calculate the effective sell amount after applying the fee
-	        uint256 effectiveSellAmount = (sellAmount * (10000 - feebps)) / 10000;
-	
-	        // Fetch updated reserves after the sellToken has been transferred
-	        uint256 reserveA = ERC20(tokenA).balanceOf(address(this));
-	        uint256 reserveB = ERC20(tokenB).balanceOf(address(this));
-	
-	        if (sellToken == tokenA) {
-	            // Calculate buyAmount using the invariant: k = (Ai + ΔA') * (Bi - ΔB)
-	            buyAmount = reserveB - (invariant / (reserveA + effectiveSellAmount));
-	        } else {
-	            // Calculate buyAmount using the invariant: k = (Ai - ΔB') * (Bi + ΔB')
-	            buyAmount = reserveA - (invariant / (reserveB + effectiveSellAmount));
-	        }
-	
-	        // Ensure that the AMM has enough tokens to fulfill the trade
-	        require(buyAmount > 0, "Insufficient output amount");
-	
-	        // Transfer buyAmount of the other token to the trader
-	        bool successBuy = ERC20(buyToken).transfer(msg.sender, buyAmount);
-	        require(successBuy, "Transfer of buyToken failed");
-	
-	        // Emit the Swap event
-	        emit Swap(sellToken, buyToken, sellAmount, buyAmount);
-	
-	        // Update the invariant
-	        uint256 new_invariant = ERC20(tokenA).balanceOf(address(this)) * ERC20(tokenB).balanceOf(address(this));
-	        require(new_invariant >= invariant, "Bad trade");
-	        invariant = new_invariant;
+		address buyToken = sellToken == tokenA ? tokenB : tokenA;
+
+		    // Get reserves before trade
+		    uint256 reserveSell = ERC20(sellToken).balanceOf(address(this));
+		    uint256 reserveBuy = ERC20(buyToken).balanceOf(address(this));
+		
+		    // Transfer sellAmount from trader to contract
+		    ERC20(sellToken).transferFrom(msg.sender, address(this), sellAmount);
+		
+		    uint256 feeDenominator = 10000;
+		    uint256 feeNumerator = feeDenominator - feebps;
+		
+		    uint256 amountInWithFee = sellAmount * feeNumerator;
+		
+		    uint256 numerator = amountInWithFee * reserveBuy;
+		    uint256 denominator = (reserveSell * feeDenominator) + amountInWithFee;
+		
+		    uint256 amountOut = numerator / denominator;
+		
+		    // Transfer amountOut of buyToken to trader
+		    ERC20(buyToken).transfer(msg.sender, amountOut);
+		
+		    emit Swap(sellToken, buyToken, sellAmount, amountOut);
+		
+		    uint256 new_invariant = ERC20(tokenA).balanceOf(address(this)) * ERC20(tokenB).balanceOf(address(this));
+		    require(new_invariant >= invariant, 'Bad trade');
+		    invariant = new_invariant;
 	    }
 
 	/*
@@ -111,32 +90,15 @@ contract AMM is AccessControl{
 		require( amtA > 0 || amtB > 0, 'Cannot provide 0 liquidity' );
 		//YOUR CODE HERE
     
-		// Enforce that only accounts with LP_ROLE can provide liquidity
-	        require(hasRole(LP_ROLE, msg.sender), "Caller is not an LP");
-	
-	        // Transfer tokenA from the sender to the AMM contract
-	        if (amtA > 0) {
-	            bool successA = ERC20(tokenA).transferFrom(msg.sender, address(this), amtA);
-	            require(successA, "Transfer of Token A failed");
-	        }
-	
-	        // Transfer tokenB from the sender to the AMM contract
-	        if (amtB > 0) {
-	            bool successB = ERC20(tokenB).transferFrom(msg.sender, address(this), amtB);
-	            require(successB, "Transfer of Token B failed");
-	        }
-	
-	        // If this is the first liquidity provision, set the invariant
-	        if (invariant == 0) {
-	            invariant = amtA * amtB;
-	        } else {
-	            // Calculate previous reserves before the addition
-	            uint256 previousA = ERC20(tokenA).balanceOf(address(this)) - amtA;
-	            uint256 previousB = ERC20(tokenB).balanceOf(address(this)) - amtB;
-	            // Ensure that the liquidity is added in the correct ratio to maintain the invariant
-	            require(amtA * previousB == amtB * previousA, "Invariant not maintained");
-	            // Invariant remains the same since the ratio is maintained
-	        }
+		    if (amtA > 0) {
+		        ERC20(tokenA).transferFrom(msg.sender, address(this), amtA);
+		    }
+		    if (amtB > 0) {
+		        ERC20(tokenB).transferFrom(msg.sender, address(this), amtB);
+		    }
+		    uint256 balanceA = ERC20(tokenA).balanceOf(address(this));
+		    uint256 balanceB = ERC20(tokenB).balanceOf(address(this));
+		    invariant = balanceA * balanceB;
 	
 	    
 			emit LiquidityProvision( msg.sender, amtA, amtB );
