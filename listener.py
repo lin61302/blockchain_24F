@@ -58,7 +58,7 @@ def scanBlocks(chain,start_block,end_block,contract_address):
         event_filter = contract.events.Deposit.create_filter(fromBlock=start_block,toBlock=end_block,argument_filters=arg_filter)
         events = event_filter.get_all_entries()
         #print( f"Got {len(events)} entries for block {block_num}" )
-        // YOUR CODE HERE
+        ## YOUR CODE HERE
         # Process events and collect data
         for evt in events:
             data = {
@@ -77,7 +77,7 @@ def scanBlocks(chain,start_block,end_block,contract_address):
             event_filter = contract.events.Deposit.create_filter(fromBlock=block_num,toBlock=block_num,argument_filters=arg_filter)
             events = event_filter.get_all_entries()
             #print( f"Got {len(events)} entries for block {block_num}" )
-            // YOUR CODE HERE
+            ## YOUR CODE HERE
             # Process events and collect data
             for evt in events:
                 data = {
