@@ -97,9 +97,9 @@ def scanBlocks(chain,start_block,end_block,contract_address):
             'chain', 'token', 'recipient', 'amount', 'transactionHash', 'address'])
 
         # Convert addresses to hex strings if they are not already
-        df['token'] = df['token'].apply(lambda x: w3.toChecksumAddress(x))
-        df['recipient'] = df['recipient'].apply(lambda x: w3.toChecksumAddress(x))
-        df['address'] = df['address'].apply(lambda x: w3.toChecksumAddress(x))
+        df['token'] = df['token'].apply(lambda x: Web3.toChecksumAddress(x))
+	df['recipient'] = df['recipient'].apply(lambda x: Web3.toChecksumAddress(x))
+	df['address'] = df['address'].apply(lambda x: Web3.toChecksumAddress(x))
 
         # Write the DataFrame to CSV
         df.to_csv(eventfile, index=False)
