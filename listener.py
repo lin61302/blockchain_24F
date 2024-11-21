@@ -5,6 +5,7 @@ from web3.middleware import geth_poa_middleware #Necessary for POA chains
 import json
 from datetime import datetime
 import pandas as pd
+import web3
 
 eventfile = 'deposit_logs.csv'
 
