@@ -111,7 +111,7 @@ def scanBlocks(chain):
             # Now, call wrap() function on the destination chain
             # wrap(address _underlying_token, address _recipient, uint256 _amount)
             # Build transaction
-            nonce = w3_other.eth.getTransactionCount(account_address)
+            nonce = web3.eth.getTransactionCount(account_address)
             txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
                 'chainId': w3_other.eth.chain_id,
                 'gas': 500000,
@@ -143,7 +143,7 @@ def scanBlocks(chain):
             # Now, call withdraw() function on the source chain
             # withdraw(address _token, address _recipient, uint256 _amount)
             # Build transaction
-            nonce = w3_other.eth.getTransactionCount(account_address)
+            nonce = web3.eth.getTransactionCount(account_address)
             txn = contract_other.functions.withdraw(underlying_token, to, amount).build_transaction({
                 'chainId': w3_other.eth.chain_id,
                 'gas': 500000,
