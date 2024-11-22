@@ -1,6 +1,5 @@
 from web3 import Web3
 from web3.contract import Contract
-from web3.providers.rpc import HTTPProvider
 from web3.middleware import geth_poa_middleware  # Necessary for POA chains
 import json
 import sys
@@ -23,11 +22,13 @@ def connectTo(chain):
     w3 = Web3(Web3.HTTPProvider(api_url))
     # Inject the POA compatibility middleware to the innermost layer
     w3.middleware_onion.inject(geth_poa_middleware, layer=0)
-    # if not w3.isConnected():
-    #     print(f"Failed to connect to {chain} network.")
-    #     return None
+
+    # Optionally, print connection status
+    print(f"Attempting to connect to {chain} network...")
+    # if w3.isConnected():
+    #     print(f"Successfully connected to {chain} network.")
     # else:
-    #     print(f"Connected to {chain} network.")
+    #     print(f"Failed to connect to {chain} network.")
     return w3
 
 def getContractInfo(chain):
@@ -89,11 +90,6 @@ def scanBlocks(chain):
     if not private_key or not account_address:
         print(f"Missing private_key or public_key in contract_info for '{other_chain}'")
         return
-
-    # Verify account address
-    # if not Web3.isAddress(account_address):
-    #     print(f"Invalid account address: {account_address}")
-    #     return
 
     # Get the latest block number on the chain
     try:
@@ -163,6 +159,16 @@ def scanBlocks(chain):
                 # Send transaction
                 tx_hash_sent = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
                 print(f"wrap() transaction sent on {other_chain}: tx_hash={tx_hash_sent.hex()}")
+
+                # Optional: Wait for receipt and check status
+                try:
+                    receipt = w3_other.eth.wait_for_transaction_receipt(tx_hash_sent, timeout=120)
+                    if receipt.status == 1:
+                        print(f"Transaction successful: {tx_hash_sent.hex()}")
+                    else:
+                        print(f"Transaction failed: {tx_hash_sent.hex()}")
+                except Exception as e:
+                    print(f"Error waiting for transaction receipt: {e}")
 
             except Exception as e:
                 print(f"Failed to send wrap() transaction: {e}")
