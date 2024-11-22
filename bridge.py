@@ -34,6 +34,9 @@ def connectTo(chain):
         return None
 
     w3 = Web3(Web3.HTTPProvider(api_url))
+    if not w3.isConnected():
+        print(f"Failed to connect to {chain} chain at {api_url}")
+        return None
     w3.middleware_onion.inject(geth_poa_middleware, layer=0)
     return w3
 
@@ -69,7 +72,7 @@ def get_revert_reason(w3, tx_hash):
 
         # Attempt to call the transaction to get the revert reason
         try:
-            w3.eth.call(tx)
+            w3.eth.call(tx, block_identifier=tx_receipt.blockNumber)
         except Exception as e:
             revert_reason = str(e)
             return revert_reason
@@ -128,6 +131,10 @@ def scanBlocks(chain):
     print(f"Source WARDEN Address: {source_warden}")
     print(f"Destination WARDEN Address: {dest_warden}")
 
+    # Check if WARDEN accounts are the same
+    if source_warden.lower() == dest_warden.lower():
+        print("Warning: Source and Destination WARDEN addresses are the same. It's recommended to use separate accounts for each chain.")
+    
     if not source_private_key or not dest_private_key:
         print(f"Missing private_key in contract_info for 'source' or 'destination'")
         return
@@ -192,10 +199,6 @@ def scanBlocks(chain):
                         # Attempt to get revert reason
                         revert_reason = get_revert_reason(dest_w3, tx_hash_sent)
                         print(f"Revert Reason: {revert_reason}")
-
-                except Exception as e:
-                    print(f"Error in wrap: {e}")
-                    traceback.print_exc()
 
         except Exception as e:
             print(f"Error scanning deposits: {e}")
