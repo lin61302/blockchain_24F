@@ -136,21 +136,21 @@ def scanBlocks(chain):
 
                 try:
                     # First check if we have WARDEN_ROLE on source chain
-                    has_role = contract_other.functions.hasRole(WARDEN_ROLE, account_address).call()
+                    has_role = contract.functions.hasRole(WARDEN_ROLE, account_address).call()
                     if not has_role:
                         print(f"Account {account_address} doesn't have WARDEN_ROLE on source chain")
                         continue
 
-                    nonce = w3_other.eth.get_transaction_count(account_address)
+                    nonce = w3.eth.get_transaction_count(account_address)
                     print(nonce)
-                    gas_price = w3_other.eth.gas_price
+                    gas_price = w3.eth.gas_price
 
-                    txn = contract_other.functions.Withdraw(
+                    txn = contract.functions.Withdraw(
                         underlying_token,  # Use underlying_token from the Unwrap event
                         to,               # Use recipient address from the event
                         amount           # Use amount from the event
                     ).build_transaction({
-                        'chainId': w3_other.eth.chain_id,
+                        'chainId': w3.eth.chain_id,
                         'gas': 200000,
                         'gasPrice': min(gas_price, 10000000000),
                         'nonce': nonce,
@@ -158,12 +158,12 @@ def scanBlocks(chain):
                     })
                     print('txn:', txn)
 
-                    signed_txn = w3_other.eth.account.sign_transaction(txn, private_key)
+                    signed_txn = w3.eth.account.sign_transaction(txn, private_key)
                     print('signed_txn',signed_txn)
-                    tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
+                    tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
                     print(f"withdraw() transaction sent on {other_chain}: tx_hash={tx_hash.hex()}")
 
-                    receipt = w3_other.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+                    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
                     if receipt.status == 1:
                         print(f"Transaction successful: {tx_hash.hex()}")
                     else:
