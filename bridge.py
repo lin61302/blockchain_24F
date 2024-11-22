@@ -79,8 +79,12 @@ def scanBlocks(chain):
     contract_abi_other = contract_info_other_chain['abi']
 
     # Load private key and account address for signing transactions on the other chain
-    private_key = contract_info_other_chain['private_key']  # Private key for signing transactions
-    account_address = contract_info_other_chain['public_key']  # Public address of the account
+    private_key = contract_info_other_chain.get('private_key')
+    account_address = contract_info_other_chain.get('public_key')
+
+    if not private_key or not account_address:
+        print(f"Missing private_key or public_key in contract_info for '{other_chain}'")
+        return
 
     # Verify account address
     # if not Web3.isAddress(account_address):
@@ -103,58 +107,81 @@ def scanBlocks(chain):
     # Depending on the chain, look for specific events
     if chain == 'source':
         # Look for 'Deposit' events
-        event_filter = contract.events.Deposit.create_filter(fromBlock=start_block, toBlock=end_block)
-        events = event_filter.get_all_entries()
+        try:
+            event_filter = contract.events.Deposit.create_filter(fromBlock=start_block, toBlock=end_block)
+            events = event_filter.get_all_entries()
+        except Exception as e:
+            print(f"Error creating event filter for 'Deposit': {e}")
+            return
+
         for evt in events:
             # Get event data
-            token = evt.args['token']
-            recipient = evt.args['recipient']
-            amount = evt.args['amount']
-            tx_hash = evt.transactionHash.hex()
-            print(f"Found Deposit event: token={token}, recipient={recipient}, amount={amount}, tx_hash={tx_hash}")
+            try:
+                token = evt.args['token']
+                recipient = evt.args['recipient']
+                amount = evt.args['amount']
+                tx_hash = evt.transactionHash.hex()
+                print(f"Found Deposit event: token={token}, recipient={recipient}, amount={amount}, tx_hash={tx_hash}")
+            except KeyError as e:
+                print(f"Missing event argument: {e}")
+                continue
 
-            # Now, call wrap() function on the destination chain
-            # Build transaction
-            nonce = w3_other.eth.get_transaction_count(account_address)
-            txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
-                'chainId': w3_other.eth.chain_id,
-                'gas': 500000,
-                'gasPrice': Web3.to_wei('10', 'gwei'),
-                'nonce': nonce,
-            })
-            # Sign transaction
-            signed_txn = w3_other.eth.account.sign_transaction(txn, private_key=private_key)
-            # Send transaction
-            tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
-            print(f"wrap() transaction sent on {other_chain}: tx_hash={tx_hash.hex()}")
+            try:
+                # Now, call wrap() function on the destination chain
+                nonce = w3_other.eth.get_transaction_count(account_address)
+                gas_price = 10_000_000_000  # 10 Gwei in Wei
+                txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
+                    'chainId': w3_other.eth.chain_id,
+                    'gas': 500000,
+                    'gasPrice': gas_price,
+                    'nonce': nonce,
+                })
+                # Sign transaction
+                signed_txn = w3_other.eth.account.sign_transaction(txn, private_key=private_key)
+                # Send transaction
+                tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
+                print(f"wrap() transaction sent on {other_chain}: tx_hash={tx_hash.hex()}")
+            except Exception as e:
+                print(f"Failed to send wrap() transaction: {e}")
 
     else:
         # chain == 'destination'
         # Look for 'Unwrap' events
-        event_filter = contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
-        events = event_filter.get_all_entries()
+        try:
+            event_filter = contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
+            events = event_filter.get_all_entries()
+        except Exception as e:
+            print(f"Error creating event filter for 'Unwrap': {e}")
+            return
+
         for evt in events:
             # Get event data
-            underlying_token = evt.args['underlying_token']
-            wrapped_token = evt.args['wrapped_token']
-            frm = evt.args['frm']
-            to = evt.args['to']
-            amount = evt.args['amount']
-            tx_hash = evt.transactionHash.hex()
-            print(f"Found Unwrap event: underlying_token={underlying_token}, wrapped_token={wrapped_token}, frm={frm}, to={to}, amount={amount}, tx_hash={tx_hash}")
+            try:
+                underlying_token = evt.args['underlying_token']
+                wrapped_token = evt.args['wrapped_token']
+                frm = evt.args['frm']
+                to = evt.args['to']
+                amount = evt.args['amount']
+                tx_hash = evt.transactionHash.hex()
+                print(f"Found Unwrap event: underlying_token={underlying_token}, wrapped_token={wrapped_token}, frm={frm}, to={to}, amount={amount}, tx_hash={tx_hash}")
+            except KeyError as e:
+                print(f"Missing event argument: {e}")
+                continue
 
-            # Now, call withdraw() function on the source chain
-            # Build transaction
-            nonce = w3_other.eth.get_transaction_count(account_address)
-            txn = contract_other.functions.withdraw(underlying_token, to, amount).build_transaction({
-                'chainId': w3_other.eth.chain_id,
-                'gas': 500000,
-                'gasPrice': Web3.to_wei('10', 'gwei'),
-                'nonce': nonce,
-            })
-            # Sign transaction
-            signed_txn = w3_other.eth.account.sign_transaction(txn, private_key=private_key)
-            # Send transaction
-            tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
-            print(f"withdraw() transaction sent on {other_chain}: tx_hash={tx_hash.hex()}")
-
+            try:
+                # Now, call withdraw() function on the source chain
+                nonce = w3_other.eth.get_transaction_count(account_address)
+                gas_price = 10_000_000_000  # 10 Gwei in Wei
+                txn = contract_other.functions.withdraw(underlying_token, to, amount).build_transaction({
+                    'chainId': w3_other.eth.chain_id,
+                    'gas': 500000,
+                    'gasPrice': gas_price,
+                    'nonce': nonce,
+                })
+                # Sign transaction
+                signed_txn = w3_other.eth.account.sign_transaction(txn, private_key=private_key)
+                # Send transaction
+                tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
+                print(f"withdraw() transaction sent on {other_chain}: tx_hash={tx_hash.hex()}")
+            except Exception as e:
+                print(f"Failed to send withdraw() transaction: {e}")
