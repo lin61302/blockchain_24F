@@ -4,6 +4,7 @@ from web3.providers.rpc import HTTPProvider
 from web3.middleware import geth_poa_middleware  # Necessary for POA chains
 import json
 import sys
+import web3
 from pathlib import Path
 
 contract_info = "contract_info.json"
