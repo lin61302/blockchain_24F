@@ -6,6 +6,9 @@ from pathlib import Path
 
 contract_info = "contract_info.json"
 
+# The known WARDEN_ROLE hash
+WARDEN_ROLE = "0xa95a5379b182f9ab2dea1336b28c22442227353b86d7e0a968f68d98add11c07"
+
 def connectTo(chain):
     if chain == 'source':
         api_url = "https://api.avax-test.network/ext/bc/C/rpc"
@@ -91,6 +94,12 @@ def scanBlocks(chain):
                     nonce = w3_other.eth.get_transaction_count(account_address)
                     gas_price = w3_other.eth.gas_price
 
+                    # First check if we have WARDEN_ROLE
+                    has_role = contract_other.functions.hasRole(WARDEN_ROLE, account_address).call()
+                    if not has_role:
+                        print(f"Account {account_address} doesn't have WARDEN_ROLE on destination chain")
+                        continue
+
                     txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
                         'chainId': w3_other.eth.chain_id,
                         'gas': 200000,
@@ -125,8 +134,13 @@ def scanBlocks(chain):
                 to = evt.args['to']
                 amount = evt.args['amount']
 
-                # Note: We don't need to use wrapped_token since Source.sol's withdraw uses underlying_token
                 try:
+                    # First check if we have WARDEN_ROLE on source chain
+                    has_role = contract_other.functions.hasRole(WARDEN_ROLE, account_address).call()
+                    if not has_role:
+                        print(f"Account {account_address} doesn't have WARDEN_ROLE on source chain")
+                        continue
+
                     nonce = w3_other.eth.get_transaction_count(account_address)
                     gas_price = w3_other.eth.gas_price
 
@@ -136,10 +150,10 @@ def scanBlocks(chain):
                         amount           # Use amount from the event
                     ).build_transaction({
                         'chainId': w3_other.eth.chain_id,
-                        'from': account_address,  # Must be WARDEN_ROLE
                         'gas': 200000,
                         'gasPrice': min(gas_price, 10000000000),
                         'nonce': nonce,
+                        'from': account_address  # Explicitly set from address
                     })
 
                     signed_txn = w3_other.eth.account.sign_transaction(txn, private_key)
