@@ -91,14 +91,11 @@ def scanBlocks(chain):
                     nonce = w3_other.eth.get_transaction_count(account_address)
                     gas_price = w3_other.eth.gas_price
 
-                    # Calculate a lower gas estimate
-                    gas_limit = 100000  # Lower gas limit
-                    gas_price = min(gas_price, 10000000000)  # Cap at 10 Gwei
-
+                    # Build wrap transaction
                     txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
                         'chainId': w3_other.eth.chain_id,
-                        'gas': gas_limit,
-                        'gasPrice': gas_price,
+                        'gas': 100000,
+                        'gasPrice': min(gas_price, 10000000000),
                         'nonce': nonce,
                     })
 
@@ -125,23 +122,25 @@ def scanBlocks(chain):
             print(f"Found {len(events)} Unwrap event(s).")
 
             for evt in events:
-                underlying_token = evt.args['underlying_token']
+                underlying_token = evt.args['underlying_token']  # Get underlying token from event
                 to = evt.args['to']
                 amount = evt.args['amount']
                 tx_hash = evt.transactionHash.hex()
 
                 try:
+                    # Get the account nonce
                     nonce = w3_other.eth.get_transaction_count(account_address)
                     gas_price = w3_other.eth.gas_price
 
-                    # Calculate a lower gas estimate
-                    gas_limit = 100000  # Lower gas limit
-                    gas_price = min(gas_price, 10000000000)  # Cap at 10 Gwei
-
-                    txn = contract_other.functions.withdraw(underlying_token, to, amount).build_transaction({
+                    # Build withdraw transaction with underlying_token
+                    txn = contract_other.functions.withdraw(
+                        underlying_token,  # Use underlying_token from event
+                        to,
+                        amount
+                    ).build_transaction({
                         'chainId': w3_other.eth.chain_id,
-                        'gas': gas_limit,
-                        'gasPrice': gas_price,
+                        'gas': 100000,
+                        'gasPrice': min(gas_price, 10000000000),
                         'nonce': nonce,
                     })
 
