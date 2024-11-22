@@ -67,13 +67,13 @@ def scanBlocks(chain):
     contract_info_chain = getContractInfo(chain)
     contract_info_other_chain = getContractInfo(other_chain)
 
-    contract_address = Web3.toChecksumAddress(contract_info_chain['address'])
+    contract_address = Web3.to_checksum_address(contract_info_chain['address'])
     contract_abi = contract_info_chain['abi']
-    contract_address_other = Web3.toChecksumAddress(contract_info_other_chain['address'])
+    contract_address_other = Web3.to_checksum_address(contract_info_other_chain['address'])
     contract_abi_other = contract_info_other_chain['abi']
 
     private_key = contract_info_other_chain.get('private_key')
-    account_address = Web3.toChecksumAddress(contract_info_other_chain.get('public_key'))
+    account_address = Web3.to_checksum_address(contract_info_other_chain.get('public_key'))
 
     if not private_key or not account_address:
         print(f"Missing private_key or public_key in contract_info for '{other_chain}'")
@@ -105,8 +105,8 @@ def scanBlocks(chain):
             print(f"Found {len(events)} Deposit event(s).")
 
             for evt in events:
-                token = Web3.toChecksumAddress(evt.args['token'])
-                recipient = Web3.toChecksumAddress(evt.args['recipient'])
+                token = Web3.to_checksum_address(evt.args['token'])
+                recipient = Web3.to_checksum_address(evt.args['recipient'])
                 amount = evt.args['amount']
                 tx_hash = evt.transactionHash.hex()
                 print(f"Found Deposit event: token={token}, recipient={recipient}, amount={amount}, tx_hash={tx_hash}")
@@ -146,10 +146,10 @@ def scanBlocks(chain):
             print(f"Found {len(events)} Unwrap event(s).")
 
             for evt in events:
-                underlying_token = Web3.toChecksumAddress(evt.args['underlying_token'])
-                wrapped_token = Web3.toChecksumAddress(evt.args['wrapped_token'])
-                frm = Web3.toChecksumAddress(evt.args['frm'])
-                to = Web3.toChecksumAddress(evt.args['to'])
+                underlying_token = Web3.to_checksum_address(evt.args['underlying_token'])
+                wrapped_token = Web3.to_checksum_address(evt.args['wrapped_token'])
+                frm = Web3.to_checksum_address(evt.args['frm'])
+                to = Web3.to_checksum_address(evt.args['to'])
                 amount = evt.args['amount']
                 tx_hash = evt.transactionHash.hex()
 
