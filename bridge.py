@@ -5,8 +5,6 @@ import sys
 from pathlib import Path
 
 contract_info = "contract_info.json"
-
-# The known WARDEN_ROLE hash
 WARDEN_ROLE = "0xa95a5379b182f9ab2dea1336b28c22442227353b86d7e0a968f68d98add11c07"
 
 def connectTo(chain):
@@ -40,47 +38,59 @@ def getContractInfo(chain):
     return contracts[chain]
 
 def scanBlocks(chain):
-    if chain not in ['source', 'destination']:
-        print(f"Invalid chain: {chain}")
+    # Connect to both chains
+    source_w3 = connectTo('source')
+    dest_w3 = connectTo('destination')
+
+    if not source_w3 or not dest_w3:
+        print("Failed to connect to chains.")
         return
 
-    other_chain = 'destination' if chain == 'source' else 'source'
-    
-    w3 = connectTo(chain)
-    w3_other = connectTo(other_chain)
+    # Load contract info for both chains
+    source_info = getContractInfo('source')
+    dest_info = getContractInfo('destination')
 
-    if w3 is None or w3_other is None:
-        print("Failed to connect to one or both chains.")
-        return
+    # Initialize contracts
+    source_contract = source_w3.eth.contract(
+        address=source_info['address'],
+        abi=source_info['abi']
+    )
+    dest_contract = dest_w3.eth.contract(
+        address=dest_info['address'],
+        abi=dest_info['abi']
+    )
 
-    contract_info_chain = getContractInfo(chain)
-    contract_info_other_chain = getContractInfo(other_chain)
+    # Get the key for sending transactions
+    if chain == 'source':
+        key_info = dest_info  # For wrapping, we need destination keys
+    else:
+        key_info = source_info  # For unwrapping, we need source keys
 
-    contract_address = contract_info_chain['address']
-    contract_abi = contract_info_chain['abi']
-    contract_address_other = contract_info_other_chain['address']
-    contract_abi_other = contract_info_other_chain['abi']
-
-    private_key = contract_info_other_chain.get('private_key')
-    account_address = contract_info_other_chain.get('public_key')
+    private_key = key_info.get('private_key')
+    account_address = key_info.get('public_key')
 
     if not private_key or not account_address:
-        print(f"Missing private_key or public_key in contract_info for '{other_chain}'")
+        print(f"Missing private_key or public_key in contract_info")
         return
 
-    latest_block = w3.eth.block_number
-    start_block = max(0, latest_block - 5)
-    end_block = latest_block
+    # Get block range to scan
+    if chain == 'source':
+        current_block = source_w3.eth.block_number
+    else:
+        current_block = dest_w3.eth.block_number
 
+    start_block = max(0, current_block - 5)
+    end_block = current_block
     print(f"Scanning blocks {start_block} - {end_block} on {chain}")
 
-    contract = w3.eth.contract(address=contract_address, abi=contract_abi)
-    contract_other = w3_other.eth.contract(address=contract_address_other, abi=contract_abi_other)
-
     if chain == 'source':
+        # Handle Deposit -> Wrap flow
         try:
-            event_filter = contract.events.Deposit.create_filter(fromBlock=start_block, toBlock=end_block)
-            events = event_filter.get_all_entries()
+            deposit_filter = source_contract.events.Deposit.create_filter(
+                fromBlock=start_block, 
+                toBlock=end_block
+            )
+            events = deposit_filter.get_all_entries()
             print(f"Found {len(events)} Deposit event(s).")
 
             for evt in events:
@@ -91,27 +101,28 @@ def scanBlocks(chain):
                 print(f"Found Deposit event: token={token}, recipient={recipient}, amount={amount}, tx_hash={tx_hash}")
 
                 try:
-                    nonce = w3_other.eth.get_transaction_count(account_address)
-                    gas_price = w3_other.eth.gas_price
-
-                    # First check if we have WARDEN_ROLE
-                    has_role = contract_other.functions.hasRole(WARDEN_ROLE, account_address).call()
+                    # Check if we have WARDEN_ROLE on destination
+                    has_role = dest_contract.functions.hasRole(WARDEN_ROLE, account_address).call()
                     if not has_role:
                         print(f"Account {account_address} doesn't have WARDEN_ROLE on destination chain")
                         continue
 
-                    txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
-                        'chainId': w3_other.eth.chain_id,
+                    nonce = dest_w3.eth.get_transaction_count(account_address)
+                    gas_price = dest_w3.eth.gas_price
+
+                    # Build wrap transaction
+                    txn = dest_contract.functions.wrap(token, recipient, amount).build_transaction({
+                        'chainId': dest_w3.eth.chain_id,
                         'gas': 200000,
                         'gasPrice': min(gas_price, 10000000000),
                         'nonce': nonce,
                     })
 
-                    signed_txn = w3_other.eth.account.sign_transaction(txn, private_key)
-                    tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
-                    print(f"wrap() transaction sent on {other_chain}: tx_hash={tx_hash.hex()}")
+                    signed_txn = dest_w3.eth.account.sign_transaction(txn, private_key)
+                    tx_hash = dest_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                    print(f"wrap() transaction sent on destination: tx_hash={tx_hash.hex()}")
 
-                    receipt = w3_other.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+                    receipt = dest_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
                     if receipt.status == 1:
                         print(f"Transaction successful: {tx_hash.hex()}")
                     else:
@@ -123,47 +134,50 @@ def scanBlocks(chain):
         except Exception as e:
             print(f"Error processing Deposit events: {e}")
 
-    else:  # destination chain
+    else:
+        # Handle Unwrap -> Withdraw flow
         try:
-            event_filter = contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
-            events = event_filter.get_all_entries()
+            unwrap_filter = dest_contract.events.Unwrap.create_filter(
+                fromBlock=start_block, 
+                toBlock=end_block
+            )
+            events = unwrap_filter.get_all_entries()
             print(f"Found {len(events)} Unwrap event(s).")
 
             for evt in events:
                 underlying_token = evt.args['underlying_token']
+                wrapped_token = evt.args['wrapped_token']
                 to = evt.args['to']
                 amount = evt.args['amount']
 
                 try:
-                    # First check if we have WARDEN_ROLE on source chain
-                    has_role = contract.functions.hasRole(WARDEN_ROLE, account_address).call()
+                    # Check if we have WARDEN_ROLE on source
+                    has_role = source_contract.functions.hasRole(WARDEN_ROLE, account_address).call()
                     if not has_role:
                         print(f"Account {account_address} doesn't have WARDEN_ROLE on source chain")
                         continue
 
-                    nonce = w3.eth.get_transaction_count(account_address)
-                    print(nonce)
-                    gas_price = w3.eth.gas_price
+                    nonce = source_w3.eth.get_transaction_count(account_address)
+                    gas_price = source_w3.eth.gas_price
 
-                    txn = contract.functions.Withdraw(
-                        underlying_token,  # Use underlying_token from the Unwrap event
-                        to,               # Use recipient address from the event
-                        amount           # Use amount from the event
+                    # Build withdraw transaction
+                    txn = source_contract.functions.withdraw(
+                        underlying_token,  # Use underlying token address
+                        to,               # Use recipient from event
+                        amount           # Use amount from event
                     ).build_transaction({
-                        'chainId': w3.eth.chain_id,
+                        'chainId': source_w3.eth.chain_id,
                         'gas': 200000,
                         'gasPrice': min(gas_price, 10000000000),
                         'nonce': nonce,
-                        'from': account_address  # Explicitly set from address
+                        'from': account_address
                     })
-                    print('txn:', txn)
 
-                    signed_txn = w3.eth.account.sign_transaction(txn, private_key)
-                    print('signed_txn',signed_txn)
-                    tx_hash = w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-                    print(f"withdraw() transaction sent on {other_chain}: tx_hash={tx_hash.hex()}")
+                    signed_txn = source_w3.eth.account.sign_transaction(txn, private_key)
+                    tx_hash = source_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                    print(f"withdraw() transaction sent on source: tx_hash={tx_hash.hex()}")
 
-                    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+                    receipt = source_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
                     if receipt.status == 1:
                         print(f"Transaction successful: {tx_hash.hex()}")
                     else:
