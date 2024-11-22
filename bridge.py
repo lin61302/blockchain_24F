@@ -23,11 +23,11 @@ def connectTo(chain):
     w3 = Web3(Web3.HTTPProvider(api_url))
     # Inject the POA compatibility middleware to the innermost layer
     w3.middleware_onion.inject(geth_poa_middleware, layer=0)
-    if not w3.isConnected():
-        print(f"Failed to connect to {chain} network.")
-        return None
-    else:
-        print(f"Connected to {chain} network.")
+    # if not w3.isConnected():
+    #     print(f"Failed to connect to {chain} network.")
+    #     return None
+    # else:
+    #     print(f"Connected to {chain} network.")
     return w3
 
 def getContractInfo(chain):
