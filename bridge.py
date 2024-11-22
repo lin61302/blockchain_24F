@@ -73,18 +73,18 @@ def scanBlocks(chain):
     contract_info_other_chain = getContractInfo(other_chain_name)
 
     # Get contract addresses and ABIs
-    contract_address = contract_info_chain['contract_address']
-    contract_abi = contract_info_chain['contract_abi']
+    contract_address = contract_info_chain['address']
+    contract_abi = contract_info_chain['abi']
 
-    contract_address_other = contract_info_other_chain['contract_address']
-    contract_abi_other = contract_info_other_chain['contract_abi']
+    contract_address_other = contract_info_other_chain['address']
+    contract_abi_other = contract_info_other_chain['abi']
 
     # Load private key and account address for signing transactions on the other chain
-    private_key = contract_info_other_chain['private_key']  # Private key for the account with permissions
+    private_key = contract_info_other_chain['private_key']  # Private key for signing transactions
     account_address = contract_info_other_chain['public_key']  # Public address of the account
 
     # Now, get the latest block number on the chain
-    latest_block = w3.eth.blockNumber
+    latest_block = w3.eth.block_number
 
     # Set the block range to scan
     start_block = latest_block - 5 if latest_block >= 5 else 0
@@ -100,7 +100,7 @@ def scanBlocks(chain):
     if chain == 'source':
         # Look for 'Deposit' events
         # Deposit(address indexed token, address indexed recipient, uint256 amount)
-        event_filter = contract.events.Deposit.createFilter(fromBlock=start_block, toBlock=end_block)
+        event_filter = contract.events.Deposit.create_filter(fromBlock=start_block, toBlock=end_block)
         events = event_filter.get_all_entries()
         for evt in events:
             # Get event data
@@ -114,23 +114,23 @@ def scanBlocks(chain):
             # wrap(address _underlying_token, address _recipient, uint256 _amount)
             # Build transaction
             nonce = w3_other.eth.getTransactionCount(account_address)
-            txn = contract_other.functions.wrap(token, recipient, amount).buildTransaction({
+            txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
                 'chainId': w3_other.eth.chain_id,
                 'gas': 500000,
                 'gasPrice': w3_other.toWei('10', 'gwei'),
                 'nonce': nonce,
             })
             # Sign transaction
-            signed_txn = w3_other.eth.account.signTransaction(txn, private_key=private_key)
+            signed_txn = w3_other.eth.account.sign_transaction(txn, private_key=private_key)
             # Send transaction
-            tx_hash = w3_other.eth.sendRawTransaction(signed_txn.rawTransaction)
+            tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
             print(f"wrap() transaction sent on {other_chain_name}: tx_hash={tx_hash.hex()}")
 
     else:
         # chain == 'destination'
         # Look for 'Unwrap' events
         # Unwrap(address indexed underlying_token, address indexed wrapped_token, address frm, address indexed to, uint256 amount)
-        event_filter = contract.events.Unwrap.createFilter(fromBlock=start_block, toBlock=end_block)
+        event_filter = contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
         events = event_filter.get_all_entries()
         for evt in events:
             # Get event data
@@ -146,15 +146,16 @@ def scanBlocks(chain):
             # withdraw(address _token, address _recipient, uint256 _amount)
             # Build transaction
             nonce = w3_other.eth.getTransactionCount(account_address)
-            txn = contract_other.functions.withdraw(underlying_token, to, amount).buildTransaction({
+            txn = contract_other.functions.withdraw(underlying_token, to, amount).build_transaction({
                 'chainId': w3_other.eth.chain_id,
                 'gas': 500000,
                 'gasPrice': w3_other.toWei('10', 'gwei'),
                 'nonce': nonce,
             })
             # Sign transaction
-            signed_txn = w3_other.eth.account.signTransaction(txn, private_key=private_key)
+            signed_txn = w3_other.eth.account.sign_transaction(txn, private_key=private_key)
             # Send transaction
-            tx_hash = w3_other.eth.sendRawTransaction(signed_txn.rawTransaction)
+            tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
             print(f"withdraw() transaction sent on {other_chain_name}: tx_hash={tx_hash.hex()}")
+
 
