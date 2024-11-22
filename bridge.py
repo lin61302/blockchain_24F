@@ -5,13 +5,29 @@ import sys
 from pathlib import Path
 
 contract_info = "contract_info.json"
-WARDEN_ROLE = "0xa95a5379b182f9ab2dea1336b28c22442227353b86d7e0a968f68d98add11c07"
+
+# Standard ERC20 ABI (only the transfer function)
+ERC20_ABI = [
+    {
+        "constant": False,
+        "inputs": [
+            {"name": "_to", "type": "address"},
+            {"name": "_value", "type": "uint256"}
+        ],
+        "name": "transfer",
+        "outputs": [{"name": "", "type": "bool"}],
+        "type": "function"
+    }
+]
 
 def connectTo(chain):
+    """
+    Connect to the specified blockchain network.
+    """
     if chain == 'source':
-        api_url = "https://api.avax-test.network/ext/bc/C/rpc"
+        api_url = "https://api.avax-test.network/ext/bc/C/rpc"  # AVAX C-chain testnet
     elif chain == 'destination':
-        api_url = "https://data-seed-prebsc-1-s1.binance.org:8545/"
+        api_url = "https://data-seed-prebsc-1-s1.binance.org:8545/"  # BSC testnet
     else:
         print(f"Invalid chain: {chain}")
         return None
@@ -21,6 +37,9 @@ def connectTo(chain):
     return w3
 
 def getContractInfo(chain):
+    """
+    Load the contract information from 'contract_info.json'.
+    """
     p = Path(__file__).with_name(contract_info)
     try:
         with p.open('r') as f:
@@ -38,22 +57,54 @@ def getContractInfo(chain):
     return contracts[chain]
 
 def scanBlocks(chain):
+    """
+    Scan the latest blocks for relevant events and execute corresponding functions.
+    """
     print(f"\n=== Starting scanBlocks for {chain} chain ===")
     
+    # Connect to both chains
     source_w3 = connectTo('source')
     dest_w3 = connectTo('destination')
 
+    if source_w3 is None or dest_w3 is None:
+        print("Failed to connect to one or both chains.")
+        return
+
+    # Get contract info
     source_info = getContractInfo('source')
     dest_info = getContractInfo('destination')
 
-    source_contract = source_w3.eth.contract(address=source_info['address'], abi=source_info['abi'])
-    dest_contract = dest_w3.eth.contract(address=dest_info['address'], abi=dest_info['abi'])
+    # Initialize contracts with checksum addresses
+    try:
+        source_contract = source_w3.eth.contract(
+            address=Web3.toChecksumAddress(source_info['address']),
+            abi=source_info['abi']
+        )
+    except Exception as e:
+        print(f"Error loading source contract: {e}")
+        return
 
-    # Use your address for WARDEN operations
-    WARDEN = "0x634D745F4f3d26759Dd6836Ba25B16Ba3050d3D6"
-    warden_key = source_info.get('private_key')
+    try:
+        dest_contract = dest_w3.eth.contract(
+            address=Web3.toChecksumAddress(dest_info['address']),
+            abi=dest_info['abi']
+        )
+    except Exception as e:
+        print(f"Error loading destination contract: {e}")
+        return
+
+    # Define WARDEN accounts and keys for both chains
+    # Assuming the same WARDEN address is used on both chains
+    WARDEN = Web3.toChecksumAddress("0x634D745F4f3d26759Dd6836Ba25B16Ba3050d3D6")
+    source_private_key = source_info.get('private_key')
+    dest_private_key = dest_info.get('private_key')
+
+    if not source_private_key or not dest_private_key:
+        print(f"Missing private_key in contract_info for 'source' or 'destination'")
+        return
 
     if chain == 'source':
+        # Handle Deposit events: wrap on destination chain
         current_block = source_w3.eth.block_number
         start_block = max(0, current_block - 5)
         end_block = current_block
@@ -68,25 +119,38 @@ def scanBlocks(chain):
             print(f"Found {len(deposits)} Deposit event(s)")
             for evt in deposits:
                 try:
-                    nonce = dest_w3.eth.get_transaction_count(WARDEN)
-                    gas_price = min(dest_w3.eth.gas_price, 10000000000)
+                    token = Web3.toChecksumAddress(evt.args['token'])
+                    recipient = Web3.toChecksumAddress(evt.args['recipient'])
+                    amount = evt.args['amount']
+                    tx_hash = evt.transactionHash.hex()
+                    print(f"Found Deposit event: token={token}, recipient={recipient}, amount={amount}, tx_hash={tx_hash}")
 
-                    # Build wrap transaction
+                    # Build wrap transaction on destination chain
+                    nonce = dest_w3.eth.get_transaction_count(WARDEN)
+                    gas_price = dest_w3.eth.gas_price
+
                     txn = dest_contract.functions.wrap(
-                        evt.args['token'],
-                        evt.args['recipient'],
-                        evt.args['amount']
+                        token,
+                        recipient,
+                        amount
                     ).build_transaction({
                         'chainId': dest_w3.eth.chain_id,
-                        'gas': 200000,
-                        'gasPrice': gas_price,
+                        'gas': 200000,  # Increased gas limit for wrap function
+                        'gasPrice': min(gas_price, 10000000000),  # 10 Gwei cap
                         'nonce': nonce,
                         'from': WARDEN
                     })
 
-                    signed_txn = dest_w3.eth.account.sign_transaction(txn, warden_key)
-                    tx_hash = dest_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-                    print(f"Wrap tx: {tx_hash.hex()}")
+                    signed_txn = dest_w3.eth.account.sign_transaction(txn, dest_private_key)
+                    tx_hash_sent = dest_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                    print(f"Wrap tx sent on destination chain: {tx_hash_sent.hex()}")
+
+                    # Wait for receipt
+                    receipt = dest_w3.eth.wait_for_transaction_receipt(tx_hash_sent, timeout=120)
+                    if receipt.status == 1:
+                        print(f"Wrap transaction successful: {tx_hash_sent.hex()}")
+                    else:
+                        print(f"Wrap transaction failed: {tx_hash_sent.hex()}")
 
                 except Exception as e:
                     print(f"Error in wrap: {e}")
@@ -94,7 +158,8 @@ def scanBlocks(chain):
         except Exception as e:
             print(f"Error scanning deposits: {e}")
 
-    else:  # destination chain
+    else:  # chain == 'destination'
+        # Handle Unwrap events: transfer underlying tokens on source chain
         current_block = dest_w3.eth.block_number
         start_block = max(0, current_block - 5)
         end_block = current_block
@@ -109,10 +174,10 @@ def scanBlocks(chain):
             print(f"Found {len(unwraps)} Unwrap event(s)")
             for evt in unwraps:
                 try:
-                    underlying_token = evt.args['underlying_token']
-                    to = evt.args['to']
+                    underlying_token = Web3.toChecksumAddress(evt.args['underlying_token'])
+                    to = Web3.toChecksumAddress(evt.args['to'])
                     amount = evt.args['amount']
-                    frm = evt.args['frm']
+                    frm = Web3.toChecksumAddress(evt.args['frm'])
 
                     print(f"\nProcessing Unwrap:")
                     print(f"From: {frm}")
@@ -120,25 +185,38 @@ def scanBlocks(chain):
                     print(f"Token: {underlying_token}")
                     print(f"Amount: {amount}")
 
-                    # Call withdraw on source chain as WARDEN
-                    nonce = source_w3.eth.get_transaction_count(WARDEN)
-                    gas_price = min(source_w3.eth.gas_price, 10000000000)
+                    # Initialize the underlying ERC20 token contract on the source chain
+                    underlying_token_contract = source_w3.eth.contract(
+                        address=underlying_token,
+                        abi=ERC20_ABI
+                    )
 
-                    txn = source_contract.functions.withdraw(
-                        underlying_token,
+                    # Build transaction to transfer underlying tokens to 'to' on source chain
+                    nonce = source_w3.eth.get_transaction_count(WARDEN)
+                    gas_price = source_w3.eth.gas_price
+
+                    txn = underlying_token_contract.functions.transfer(
                         to,
                         amount
                     ).build_transaction({
                         'chainId': source_w3.eth.chain_id,
-                        'gas': 200000,
-                        'gasPrice': gas_price,
+                        'gas': 100000,  # Adjust gas limit as needed
+                        'gasPrice': min(gas_price, 10000000000),  # 10 Gwei cap
                         'nonce': nonce,
                         'from': WARDEN
                     })
 
-                    signed_txn = source_w3.eth.account.sign_transaction(txn, warden_key)
-                    tx_hash = source_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-                    print(f"Withdraw tx: {tx_hash.hex()}")
+                    # Sign the transaction
+                    signed_txn = source_w3.eth.account.sign_transaction(txn, source_private_key)
+                    tx_hash_sent = source_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                    print(f"Transfer tx sent on source chain: {tx_hash_sent.hex()}")
+
+                    # Wait for receipt
+                    receipt = source_w3.eth.wait_for_transaction_receipt(tx_hash_sent, timeout=120)
+                    if receipt.status == 1:
+                        print(f"Transfer transaction successful: {tx_hash_sent.hex()}")
+                    else:
+                        print(f"Transfer transaction failed: {tx_hash_sent.hex()}")
 
                 except Exception as e:
                     print(f"Error processing withdrawal: {e}")
