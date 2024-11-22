@@ -123,20 +123,22 @@ def scanBlocks(chain):
             for evt in events:
                 underlying_token = evt.args['underlying_token']
                 wrapped_token = evt.args['wrapped_token']
-                frm = evt.args['frm']
                 to = evt.args['to']
                 amount = evt.args['amount']
 
                 try:
-                    # Query the wrapped token for this underlying token
-                    destination_contract = w3.eth.contract(address=contract_address, abi=contract_abi)
-                    wrapped_token = destination_contract.functions.wrapped_tokens(underlying_token).call()
-
+                    # Add approval if needed
+                    token_contract = w3.eth.contract(address=wrapped_token, abi=contract_abi)  
+                    
                     nonce = w3_other.eth.get_transaction_count(account_address)
                     gas_price = w3_other.eth.gas_price
 
-                    # Build withdrawal transaction
-                    txn = contract_other.functions.withdraw(underlying_token, to, amount).build_transaction({
+                    # Call withdraw on the source chain
+                    txn = contract_other.functions.withdraw(
+                        underlying_token,  # Use the underlying token address
+                        to,               # Use the recipient address from the event
+                        amount            # Use the amount from the event
+                    ).build_transaction({
                         'chainId': w3_other.eth.chain_id,
                         'from': account_address,
                         'gas': 200000,
