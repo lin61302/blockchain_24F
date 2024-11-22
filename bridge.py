@@ -144,7 +144,7 @@ def scanBlocks(chain):
                     nonce = w3_other.eth.get_transaction_count(account_address)
                     gas_price = w3_other.eth.gas_price
 
-                    txn = contract_other.functions.withdraw(
+                    txn = contract_other.functions.Withdraw(
                         underlying_token,  # Use underlying_token from the Unwrap event
                         to,               # Use recipient address from the event
                         amount           # Use amount from the event
