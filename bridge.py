@@ -146,10 +146,10 @@ def scanBlocks(chain):
             print(f"Found {len(events)} Unwrap event(s).")
 
             for evt in events:
-                underlying_token = web3.utils.toChecksumAddress(evt.args['underlying_token'])
-                wrapped_token = web3.utils.toChecksumAddress(evt.args['wrapped_token'])
-                frm = web3.utils.toChecksumAddress(evt.args['frm'])
-                to = web3.utils.toChecksumAddress(evt.args['to'])
+                underlying_token = Web3.toChecksumAddress(evt.args['underlying_token'])
+                wrapped_token = Web3.toChecksumAddress(evt.args['wrapped_token'])
+                frm = Web3.toChecksumAddress(evt.args['frm'])
+                to = Web3.toChecksumAddress(evt.args['to'])
                 amount = evt.args['amount']
                 tx_hash = evt.transactionHash.hex()
 
