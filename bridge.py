@@ -119,7 +119,7 @@ def scanBlocks(chain):
             txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
                 'chainId': w3_other.eth.chain_id,
                 'gas': 500000,
-                'gasPrice': web3.utils.toWei('10', 'gwei'),
+                'gasPrice': Web3.to_wei('10', 'gwei'),
                 'nonce': nonce,
             })
             # Sign transaction
@@ -149,7 +149,7 @@ def scanBlocks(chain):
             txn = contract_other.functions.withdraw(underlying_token, to, amount).build_transaction({
                 'chainId': w3_other.eth.chain_id,
                 'gas': 500000,
-                'gasPrice': web3.utils.toWei('10', 'gwei'),
+                'gasPrice': Web3.to_wei('10', 'gwei'),
                 'nonce': nonce,
             })
             # Sign transaction
