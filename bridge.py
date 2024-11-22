@@ -122,25 +122,21 @@ def scanBlocks(chain):
 
             for evt in events:
                 underlying_token = evt.args['underlying_token']
-                wrapped_token = evt.args['wrapped_token']
                 to = evt.args['to']
                 amount = evt.args['amount']
 
+                # Note: We don't need to use wrapped_token since Source.sol's withdraw uses underlying_token
                 try:
-                    # Add approval if needed
-                    token_contract = w3.eth.contract(address=wrapped_token, abi=contract_abi)  
-                    
                     nonce = w3_other.eth.get_transaction_count(account_address)
                     gas_price = w3_other.eth.gas_price
 
-                    # Call withdraw on the source chain
                     txn = contract_other.functions.withdraw(
-                        underlying_token,  # Use the underlying token address
-                        to,               # Use the recipient address from the event
-                        amount            # Use the amount from the event
+                        underlying_token,  # Use underlying_token from the Unwrap event
+                        to,               # Use recipient address from the event
+                        amount           # Use amount from the event
                     ).build_transaction({
                         'chainId': w3_other.eth.chain_id,
-                        'from': account_address,
+                        'from': account_address,  # Must be WARDEN_ROLE
                         'gas': 200000,
                         'gasPrice': min(gas_price, 10000000000),
                         'nonce': nonce,
