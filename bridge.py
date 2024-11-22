@@ -77,7 +77,7 @@ def scanBlocks(chain):
     # Initialize contracts with checksum addresses
     try:
         source_contract = source_w3.eth.contract(
-            address=Web3.toChecksumAddress(source_info['address']),
+            address=Web3.to_checksum_address(source_info['address']),
             abi=source_info['abi']
         )
     except Exception as e:
@@ -86,7 +86,7 @@ def scanBlocks(chain):
 
     try:
         dest_contract = dest_w3.eth.contract(
-            address=Web3.toChecksumAddress(dest_info['address']),
+            address=Web3.to_checksum_address(dest_info['address']),
             abi=dest_info['abi']
         )
     except Exception as e:
@@ -95,7 +95,7 @@ def scanBlocks(chain):
 
     # Define WARDEN accounts and keys for both chains
     # Assuming the same WARDEN address is used on both chains
-    WARDEN = Web3.toChecksumAddress("0x634D745F4f3d26759Dd6836Ba25B16Ba3050d3D6")
+    WARDEN = Web3.to_checksum_address("0x634D745F4f3d26759Dd6836Ba25B16Ba3050d3D6")
     source_private_key = source_info.get('private_key')
     dest_private_key = dest_info.get('private_key')
 
@@ -119,8 +119,8 @@ def scanBlocks(chain):
             print(f"Found {len(deposits)} Deposit event(s)")
             for evt in deposits:
                 try:
-                    token = Web3.toChecksumAddress(evt.args['token'])
-                    recipient = Web3.toChecksumAddress(evt.args['recipient'])
+                    token = Web3.to_checksum_address(evt.args['token'])
+                    recipient = Web3.to_checksum_address(evt.args['recipient'])
                     amount = evt.args['amount']
                     tx_hash = evt.transactionHash.hex()
                     print(f"Found Deposit event: token={token}, recipient={recipient}, amount={amount}, tx_hash={tx_hash}")
@@ -174,10 +174,10 @@ def scanBlocks(chain):
             print(f"Found {len(unwraps)} Unwrap event(s)")
             for evt in unwraps:
                 try:
-                    underlying_token = Web3.toChecksumAddress(evt.args['underlying_token'])
-                    to = Web3.toChecksumAddress(evt.args['to'])
+                    underlying_token = Web3.to_checksum_address(evt.args['underlying_token'])
+                    to = Web3.to_checksum_address(evt.args['to'])
                     amount = evt.args['amount']
-                    frm = Web3.toChecksumAddress(evt.args['frm'])
+                    frm = Web3.to_checksum_address(evt.args['frm'])
 
                     print(f"\nProcessing Unwrap:")
                     print(f"From: {frm}")
