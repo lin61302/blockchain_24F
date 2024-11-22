@@ -142,6 +142,7 @@ def scanBlocks(chain):
                         continue
 
                     nonce = w3_other.eth.get_transaction_count(account_address)
+                    print(nonce)
                     gas_price = w3_other.eth.gas_price
 
                     txn = contract_other.functions.Withdraw(
@@ -155,8 +156,10 @@ def scanBlocks(chain):
                         'nonce': nonce,
                         'from': account_address  # Explicitly set from address
                     })
+                    print(txn)
 
                     signed_txn = w3_other.eth.account.sign_transaction(txn, private_key)
+                    print(signed_txn)
                     tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
                     print(f"withdraw() transaction sent on {other_chain}: tx_hash={tx_hash.hex()}")
 
