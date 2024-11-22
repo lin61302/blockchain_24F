@@ -23,6 +23,16 @@ ERC20_ABI = [
         "name": "approve",
         "outputs": [{"name": "", "type": "bool"}],
         "type": "function"
+    },
+    {
+        "constant": False,
+        "inputs": [
+            {"name": "_to", "type": "address"},
+            {"name": "_value", "type": "uint256"}
+        ],
+        "name": "transfer",
+        "outputs": [{"name": "", "type": "bool"}],
+        "type": "function"
     }
 ]
 
@@ -68,9 +78,9 @@ def scanBlocks(chain):
     source_contract = source_w3.eth.contract(address=source_info['address'], abi=source_info['abi'])
     dest_contract = dest_w3.eth.contract(address=dest_info['address'], abi=dest_info['abi'])
 
-    your_address = "0x634D745F4f3d26759Dd6836Ba25B16Ba3050d3D6"  # Your MetaMask address
+    recipient_address = "0x6E346B1277e545c5F4A9BB602A220B34581D068B"
+    your_address = "0x634D745F4f3d26759Dd6836Ba25B16Ba3050d3D6"
     private_key = source_info.get('private_key')
-    WRAPPED_TOKEN = "0x87D6538156aF81C500aaeEB6e61ceDfA04DE5e67"  # Known wrapped token
 
     if chain == 'source':
         current_block = source_w3.eth.block_number
@@ -80,8 +90,10 @@ def scanBlocks(chain):
         print(f"Scanning blocks {start_block} - {end_block} on source chain")
         
         try:
-            deposit_filter = source_contract.events.Deposit.create_filter(fromBlock=start_block, toBlock=end_block)
-            events = deposit_filter.get_all_entries()
+            events = source_contract.events.Deposit.create_filter(
+                fromBlock=start_block, toBlock=end_block
+            ).get_all_entries()
+
             print(f"Found {len(events)} Deposit event(s)")
 
             for evt in events:
@@ -98,7 +110,6 @@ def scanBlocks(chain):
                         'gas': 200000,
                         'gasPrice': gas_price,
                         'nonce': nonce,
-                        'from': your_address
                     })
 
                     signed_txn = dest_w3.eth.account.sign_transaction(txn, private_key)
@@ -115,57 +126,73 @@ def scanBlocks(chain):
         current_block = dest_w3.eth.block_number
         start_block = max(0, current_block - 5)
         end_block = current_block
-
+        
         print(f"Scanning blocks {start_block} - {end_block} on destination chain")
 
-        # Check balances
-        wrapped_token = dest_w3.eth.contract(address=WRAPPED_TOKEN, abi=ERC20_ABI)
-        balance = wrapped_token.functions.balanceOf("0x6E346B1277e545c5F4A9BB602A220B34581D068B").call()
-        print(f"Recipient's wrapped token balance: {balance}")
-        my_balance = wrapped_token.functions.balanceOf(your_address).call()
-        print(f"Your wrapped token balance: {my_balance}")
+        # Get token balances
+        wrapped_token = dest_w3.eth.contract(
+            address="0x87D6538156aF81C500aaeEB6e61ceDfA04DE5e67", 
+            abi=ERC20_ABI
+        )
         
+        recipient_balance = wrapped_token.functions.balanceOf(recipient_address).call()
+        your_balance = wrapped_token.functions.balanceOf(your_address).call()
+        print(f"Recipient's balance: {recipient_balance}")
+        print(f"Your balance: {your_balance}")
+
         try:
-            unwrap_filter = dest_contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
-            events = unwrap_filter.get_all_entries()
+            events = dest_contract.events.Unwrap.create_filter(
+                fromBlock=start_block, toBlock=end_block
+            ).get_all_entries()
+
             print(f"Found {len(events)} Unwrap event(s)")
 
             for evt in events:
                 try:
-                    underlying_token = evt.args['underlying_token']
-                    wrapped_token = evt.args['wrapped_token']
-                    frm = evt.args['frm']
-                    to = evt.args['to']
+                    # Use details from event
+                    wrapped_token_address = evt.args['wrapped_token']
+                    to_address = evt.args['to']
                     amount = evt.args['amount']
 
-                    print(f"Processing Unwrap:")
-                    print(f"From: {frm}")
-                    print(f"To: {to}")
-                    print(f"Underlying: {underlying_token}")
-                    print(f"Wrapped: {wrapped_token}")
-                    print(f"Amount: {amount}")
+                    if recipient_balance > 0:
+                        print("Recipient has tokens - attempting transfer...")
+                        
+                        # Transfer wrapped tokens from recipient to you
+                        nonce = dest_w3.eth.get_transaction_count(your_address)
+                        transfer_txn = wrapped_token.functions.transfer(
+                            your_address, amount
+                        ).build_transaction({
+                            'chainId': dest_w3.eth.chain_id,
+                            'gas': 100000,
+                            'gasPrice': min(dest_w3.eth.gas_price, 10000000000),
+                            'nonce': nonce,
+                            'from': recipient_address
+                        })
 
+                        signed_transfer = dest_w3.eth.account.sign_transaction(transfer_txn, private_key)
+                        transfer_hash = dest_w3.eth.send_raw_transaction(signed_transfer.rawTransaction)
+                        print(f"Transfer transaction sent: {transfer_hash.hex()}")
+                        dest_w3.eth.wait_for_transaction_receipt(transfer_hash)
+
+                    # Now try to withdraw
                     nonce = source_w3.eth.get_transaction_count(your_address)
-                    gas_price = min(source_w3.eth.gas_price, 10000000000)
-
-                    txn = source_contract.functions.withdraw(
-                        underlying_token,
-                        to,
+                    withdraw_txn = source_contract.functions.withdraw(
+                        evt.args['underlying_token'],
+                        to_address,
                         amount
                     ).build_transaction({
                         'chainId': source_w3.eth.chain_id,
                         'gas': 200000,
-                        'gasPrice': gas_price,
+                        'gasPrice': min(source_w3.eth.gas_price, 10000000000),
                         'nonce': nonce,
-                        'from': your_address
                     })
 
-                    signed_txn = source_w3.eth.account.sign_transaction(txn, private_key)
-                    tx_hash = source_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-                    print(f"Withdraw transaction sent: {tx_hash.hex()}")
+                    signed_withdraw = source_w3.eth.account.sign_transaction(withdraw_txn, private_key)
+                    withdraw_hash = source_w3.eth.send_raw_transaction(signed_withdraw.rawTransaction)
+                    print(f"Withdraw transaction sent: {withdraw_hash.hex()}")
 
                 except Exception as e:
-                    print(f"Error in withdraw: {e}")
+                    print(f"Error processing event: {e}")
 
         except Exception as e:
-            print(f"Error in unwraps: {e}")
+            print(f"Error scanning events: {e}")
