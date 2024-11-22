@@ -75,6 +75,7 @@ def scanBlocks(chain):
     contract_other = w3_other.eth.contract(address=contract_address_other, abi=contract_abi_other)
 
     if chain == 'source':
+        # Handle Deposit events
         try:
             event_filter = contract.events.Deposit.create_filter(fromBlock=start_block, toBlock=end_block)
             events = event_filter.get_all_entries()
@@ -115,6 +116,7 @@ def scanBlocks(chain):
             print(f"Error processing Deposit events: {e}")
 
     else:  # destination chain
+        # First check for any Unwrap events
         try:
             event_filter = contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
             events = event_filter.get_all_entries()
@@ -122,24 +124,21 @@ def scanBlocks(chain):
 
             for evt in events:
                 underlying_token = evt.args['underlying_token']
+                wrapped_token = evt.args['wrapped_token']
                 to = evt.args['to']
                 amount = evt.args['amount']
-                frm = evt.args.get('frm', None)  # Get the 'frm' field if it exists
-                tx_hash = evt.transactionHash.hex()
 
                 try:
                     nonce = w3_other.eth.get_transaction_count(account_address)
                     gas_price = w3_other.eth.gas_price
 
-                    # Call withdraw with underlying token
                     txn = contract_other.functions.withdraw(
-                        underlying_token,  # Pass the underlying token address
-                        to,  # Recipient
-                        amount  # Amount to withdraw
+                        wrapped_token,  # Use wrapped token address
+                        to,
+                        amount
                     ).build_transaction({
                         'chainId': w3_other.eth.chain_id,
-                        'from': account_address,
-                        'gas': 100000,
+                        'gas': 200000,
                         'gasPrice': min(gas_price, 10000000000),
                         'nonce': nonce,
                     })
