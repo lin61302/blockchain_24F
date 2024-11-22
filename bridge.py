@@ -71,12 +71,8 @@ def scanBlocks(chain):
 
     print(f"Scanning blocks {start_block} - {end_block} on {chain}")
 
-    try:
-        contract = w3.eth.contract(address=contract_address, abi=contract_abi)
-        contract_other = w3_other.eth.contract(address=contract_address_other, abi=contract_abi_other)
-    except Exception as e:
-        print(f"Error loading contracts: {e}")
-        return
+    contract = w3.eth.contract(address=contract_address, abi=contract_abi)
+    contract_other = w3_other.eth.contract(address=contract_address_other, abi=contract_abi_other)
 
     if chain == 'source':
         try:
@@ -95,9 +91,13 @@ def scanBlocks(chain):
                     nonce = w3_other.eth.get_transaction_count(account_address)
                     gas_price = w3_other.eth.gas_price
 
+                    # Calculate a lower gas estimate
+                    gas_limit = 100000  # Lower gas limit
+                    gas_price = min(gas_price, 10000000000)  # Cap at 10 Gwei
+
                     txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
                         'chainId': w3_other.eth.chain_id,
-                        'gas': 500000,
+                        'gas': gas_limit,
                         'gasPrice': gas_price,
                         'nonce': nonce,
                     })
@@ -125,24 +125,22 @@ def scanBlocks(chain):
             print(f"Found {len(events)} Unwrap event(s).")
 
             for evt in events:
-                wrapped_token = evt.args['wrapped_token']  # Use wrapped_token from event
+                underlying_token = evt.args['underlying_token']
                 to = evt.args['to']
                 amount = evt.args['amount']
                 tx_hash = evt.transactionHash.hex()
-                print(f"Found Unwrap event: wrapped_token={wrapped_token}, to={to}, amount={amount}, tx_hash={tx_hash}")
 
                 try:
                     nonce = w3_other.eth.get_transaction_count(account_address)
                     gas_price = w3_other.eth.gas_price
 
-                    # Pass wrapped_token instead of underlying_token
-                    txn = contract_other.functions.withdraw(
-                        wrapped_token,  # Change this from underlying_token to wrapped_token
-                        to,
-                        amount
-                    ).build_transaction({
+                    # Calculate a lower gas estimate
+                    gas_limit = 100000  # Lower gas limit
+                    gas_price = min(gas_price, 10000000000)  # Cap at 10 Gwei
+
+                    txn = contract_other.functions.withdraw(underlying_token, to, amount).build_transaction({
                         'chainId': w3_other.eth.chain_id,
-                        'gas': 500000,
+                        'gas': gas_limit,
                         'gasPrice': gas_price,
                         'nonce': nonce,
                     })
