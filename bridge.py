@@ -1,6 +1,6 @@
 from web3 import Web3
 from web3.contract import Contract
-from web3.middleware import geth_poa_middleware  # Necessary for POA chains
+from web3.middleware import geth_poa_middleware
 import json
 import sys
 from pathlib import Path
@@ -20,22 +20,10 @@ def connectTo(chain):
         return None
 
     w3 = Web3(Web3.HTTPProvider(api_url))
-    # Inject the POA compatibility middleware to the innermost layer
     w3.middleware_onion.inject(geth_poa_middleware, layer=0)
-
-    # Optionally, print connection status
-    print(f"Attempting to connect to {chain} network...")
-    # if w3.isConnected():
-    #     print(f"Successfully connected to {chain} network.")
-    # else:
-    #     print(f"Failed to connect to {chain} network.")
     return w3
 
 def getContractInfo(chain):
-    """
-    Load the contract_info file into a dictionary.
-    This function is used by the autograder and will likely be useful to you.
-    """
     p = Path(__file__).with_name(contract_info)
     try:
         with p.open('r') as f:
@@ -53,17 +41,12 @@ def getContractInfo(chain):
     return contracts[chain]
 
 def scanBlocks(chain):
-    """
-    Scan the last 5 blocks of the source or destination chain for relevant events
-    and execute corresponding functions (wrap or withdraw).
-    """
     if chain not in ['source', 'destination']:
         print(f"Invalid chain: {chain}")
         return
 
-    # Determine the other chain
     other_chain = 'destination' if chain == 'source' else 'source'
-
+    
     # Connect to both chains
     w3 = connectTo(chain)
     w3_other = connectTo(other_chain)
@@ -72,18 +55,17 @@ def scanBlocks(chain):
         print("Failed to connect to one or both chains.")
         return
 
-    # Load contract info for both chains
+    # Load contract info
     contract_info_chain = getContractInfo(chain)
     contract_info_other_chain = getContractInfo(other_chain)
 
-    # Get contract addresses and ABIs
+    # Get contract details
     contract_address = contract_info_chain['address']
     contract_abi = contract_info_chain['abi']
-
     contract_address_other = contract_info_other_chain['address']
     contract_abi_other = contract_info_other_chain['abi']
 
-    # Load private key and account address for signing transactions on the other chain
+    # Load account details
     private_key = contract_info_other_chain.get('private_key')
     account_address = contract_info_other_chain.get('public_key')
 
@@ -91,142 +73,109 @@ def scanBlocks(chain):
         print(f"Missing private_key or public_key in contract_info for '{other_chain}'")
         return
 
-    # Get the latest block number on the chain
-    try:
-        latest_block = w3.eth.block_number
-    except Exception as e:
-        print(f"Error fetching latest block number on {chain}: {e}")
-        return
-
-    # Set the block range to scan
-    start_block = latest_block - 5 if latest_block >= 5 else 0
+    # Get block range
+    latest_block = w3.eth.block_number
+    start_block = max(0, latest_block - 5)
     end_block = latest_block
 
     print(f"Scanning blocks {start_block} - {end_block} on {chain}")
 
-    # Load the contracts
+    # Initialize contracts
     try:
         contract = w3.eth.contract(address=contract_address, abi=contract_abi)
-    except Exception as e:
-        print(f"Error loading contract on {chain}: {e}")
-        return
-
-    try:
         contract_other = w3_other.eth.contract(address=contract_address_other, abi=contract_abi_other)
     except Exception as e:
-        print(f"Error loading contract on {other_chain}: {e}")
+        print(f"Error loading contracts: {e}")
         return
 
-    # Depending on the chain, look for specific events
     if chain == 'source':
-        # Look for 'Deposit' events
+        # Handle Deposit events
         try:
-            event_filter = contract.events.Deposit.create_filter(fromBlock=start_block, toBlock=end_block)
-            events = event_filter.get_all_entries()
-            print(f"Found {len(events)} Deposit event(s).")
-        except Exception as e:
-            print(f"Error creating event filter for 'Deposit': {e}")
-            return
-
-        for evt in events:
-            # Get event data
-            try:
+            deposit_filter = contract.events.Deposit.create_filter(fromBlock=start_block, toBlock=end_block)
+            deposit_events = deposit_filter.get_all_entries()
+            print(f"Found {len(deposit_events)} Deposit event(s).")
+            
+            for evt in deposit_events:
                 token = evt.args['token']
                 recipient = evt.args['recipient']
                 amount = evt.args['amount']
-                tx_hash = evt.transactionHash.hex()
-                print(f"Found Deposit event: token={token}, recipient={recipient}, amount={amount}, tx_hash={tx_hash}")
-            except KeyError as e:
-                print(f"Missing event argument: {e}")
-                continue
-
-            try:
-                # Now, call wrap() function on the destination chain
-                nonce = w3_other.eth.get_transaction_count(account_address)
-                gas_price = 10_000_000_000  # 10 Gwei in Wei
-                txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
-                    'chainId': w3_other.eth.chain_id,
-                    'gas': 500000,
-                    'gasPrice': gas_price,
-                    'nonce': nonce,
-                })
-                print(f"Built wrap() transaction: {txn}")
-
-                # Sign transaction
-                signed_txn = w3_other.eth.account.sign_transaction(txn, private_key=private_key)
-                print(f"Signed wrap() transaction.")
-
-                # Send transaction
-                tx_hash_sent = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
-                print(f"wrap() transaction sent on {other_chain}: tx_hash={tx_hash_sent.hex()}")
-
-                # Optional: Wait for receipt and check status
+                
+                # Build and send wrap transaction
                 try:
-                    receipt = w3_other.eth.wait_for_transaction_receipt(tx_hash_sent, timeout=120)
+                    nonce = w3_other.eth.get_transaction_count(account_address)
+                    
+                    # Estimate gas for the transaction
+                    gas_estimate = contract_other.functions.wrap(
+                        token, recipient, amount
+                    ).estimate_gas({'from': account_address})
+                    
+                    gas_price = w3_other.eth.gas_price
+                    
+                    txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
+                        'chainId': w3_other.eth.chain_id,
+                        'gas': gas_estimate,
+                        'gasPrice': gas_price,
+                        'nonce': nonce,
+                        'from': account_address
+                    })
+                    
+                    signed_txn = w3_other.eth.account.sign_transaction(txn, private_key)
+                    tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
+                    
+                    receipt = w3_other.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
                     if receipt.status == 1:
-                        print(f"Transaction successful: {tx_hash_sent.hex()}")
+                        print(f"Wrap transaction successful: {tx_hash.hex()}")
                     else:
-                        print(f"Transaction failed: {tx_hash_sent.hex()}")
+                        print(f"Wrap transaction failed: {tx_hash.hex()}")
+                        
                 except Exception as e:
-                    print(f"Error waiting for transaction receipt: {e}")
-
-            except Exception as e:
-                print(f"Failed to send wrap() transaction: {e}")
-
-    else:
-        # chain == 'destination'
-        # Look for 'Unwrap' events
-        try:
-            event_filter = contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
-            events = event_filter.get_all_entries()
-            print(f"Found {len(events)} Unwrap event(s).")
+                    print(f"Error processing wrap: {e}")
+                    
         except Exception as e:
-            print(f"Error creating event filter for 'Unwrap': {e}")
-            return
-
-        for evt in events:
-            # Get event data
-            try:
+            print(f"Error processing Deposit events: {e}")
+            
+    else:  # destination chain
+        # Handle Unwrap events
+        try:
+            unwrap_filter = contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
+            unwrap_events = unwrap_filter.get_all_entries()
+            print(f"Found {len(unwrap_events)} Unwrap event(s).")
+            
+            for evt in unwrap_events:
                 underlying_token = evt.args['underlying_token']
-                wrapped_token = evt.args['wrapped_token']
-                frm = evt.args['frm']
                 to = evt.args['to']
                 amount = evt.args['amount']
-                tx_hash = evt.transactionHash.hex()
-                print(f"Found Unwrap event: underlying_token={underlying_token}, wrapped_token={wrapped_token}, frm={frm}, to={to}, amount={amount}, tx_hash={tx_hash}")
-            except KeyError as e:
-                print(f"Missing event argument: {e}")
-                continue
-
-            try:
-                # Now, call withdraw() function on the source chain
-                nonce = w3_other.eth.get_transaction_count(account_address)
-                gas_price = 10_000_000_000  # 10 Gwei in Wei
-                txn = contract_other.functions.withdraw(underlying_token, to, amount).build_transaction({
-                    'chainId': w3_other.eth.chain_id,
-                    'gas': 500000,
-                    'gasPrice': gas_price,
-                    'nonce': nonce,
-                })
-                print(f"Built withdraw() transaction: {txn}")
-
-                # Sign transaction
-                signed_txn = w3_other.eth.account.sign_transaction(txn, private_key=private_key)
-                print(f"Signed withdraw() transaction.")
-
-                # Send transaction
-                tx_hash_sent = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
-                print(f"withdraw() transaction sent on {other_chain}: tx_hash={tx_hash_sent.hex()}")
-
-                # Optional: Wait for receipt and check status
+                
+                # Build and send withdraw transaction
                 try:
-                    receipt = w3_other.eth.wait_for_transaction_receipt(tx_hash_sent, timeout=120)
+                    nonce = w3_other.eth.get_transaction_count(account_address)
+                    
+                    # Estimate gas for the transaction
+                    gas_estimate = contract_other.functions.withdraw(
+                        underlying_token, to, amount
+                    ).estimate_gas({'from': account_address})
+                    
+                    gas_price = w3_other.eth.gas_price
+                    
+                    txn = contract_other.functions.withdraw(underlying_token, to, amount).build_transaction({
+                        'chainId': w3_other.eth.chain_id,
+                        'gas': gas_estimate,
+                        'gasPrice': gas_price,
+                        'nonce': nonce,
+                        'from': account_address
+                    })
+                    
+                    signed_txn = w3_other.eth.account.sign_transaction(txn, private_key)
+                    tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
+                    
+                    receipt = w3_other.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
                     if receipt.status == 1:
-                        print(f"Transaction successful: {tx_hash_sent.hex()}")
+                        print(f"Withdraw transaction successful: {tx_hash.hex()}")
                     else:
-                        print(f"Transaction failed: {tx_hash_sent.hex()}")
+                        print(f"Withdraw transaction failed: {tx_hash.hex()}")
+                        
                 except Exception as e:
-                    print(f"Error waiting for transaction receipt: {e}")
-
-            except Exception as e:
-                print(f"Failed to send withdraw() transaction: {e}")
+                    print(f"Error processing withdraw: {e}")
+                    
+        except Exception as e:
+            print(f"Error processing Unwrap events: {e}")
