@@ -57,6 +57,27 @@ def getContractInfo(chain):
 
     return contracts[chain]
 
+def get_revert_reason(w3, tx_hash):
+    """
+    Retrieve the revert reason from a failed transaction.
+    """
+    try:
+        tx = w3.eth.get_transaction(tx_hash)
+        tx_receipt = w3.eth.get_transaction_receipt(tx_hash)
+        if tx_receipt.status == 1:
+            return None  # Transaction succeeded
+
+        # Attempt to call the transaction to get the revert reason
+        try:
+            w3.eth.call(tx)
+        except Exception as e:
+            revert_reason = str(e)
+            return revert_reason
+    except Exception as e:
+        print(f"Error retrieving revert reason: {e}")
+        traceback.print_exc()
+        return "Unknown revert reason"
+
 def scanBlocks(chain):
     """
     Scan the latest blocks for relevant events and execute corresponding functions.
@@ -102,6 +123,10 @@ def scanBlocks(chain):
     
     dest_warden = Web3.to_checksum_address(dest_info['public_key'])
     dest_private_key = dest_info.get('private_key')
+
+    # Print WARDEN addresses to verify separation
+    print(f"Source WARDEN Address: {source_warden}")
+    print(f"Destination WARDEN Address: {dest_warden}")
 
     if not source_private_key or not dest_private_key:
         print(f"Missing private_key in contract_info for 'source' or 'destination'")
@@ -164,7 +189,10 @@ def scanBlocks(chain):
                         print(f"Wrap transaction successful: {tx_hash_sent.hex()}")
                     else:
                         print(f"Wrap transaction failed: {tx_hash_sent.hex()}")
-        
+                        # Attempt to get revert reason
+                        revert_reason = get_revert_reason(dest_w3, tx_hash_sent)
+                        print(f"Revert Reason: {revert_reason}")
+
                 except Exception as e:
                     print(f"Error in wrap: {e}")
                     traceback.print_exc()
@@ -248,6 +276,9 @@ def scanBlocks(chain):
                         print(f"  Transfer transaction successful: {tx_hash_sent.hex()}")
                     else:
                         print(f"  Transfer transaction failed: {tx_hash_sent.hex()}")
+                        # Attempt to get revert reason
+                        revert_reason = get_revert_reason(source_w3, tx_hash_sent)
+                        print(f"  Revert Reason: {revert_reason}")
 
                 except Exception as e:
                     print(f"Error processing withdrawal: {e}")
