@@ -7,17 +7,6 @@ from pathlib import Path
 contract_info = "contract_info.json"
 WARDEN_ROLE = "0xa95a5379b182f9ab2dea1336b28c22442227353b86d7e0a968f68d98add11c07"
 
-# Standard ERC20 ABI
-ERC20_ABI = [
-    {
-        "constant": True,
-        "inputs": [{"name": "_owner", "type": "address"}],
-        "name": "balanceOf",
-        "outputs": [{"name": "balance", "type": "uint256"}],
-        "type": "function"
-    }
-]
-
 def connectTo(chain):
     if chain == 'source':
         api_url = "https://api.avax-test.network/ext/bc/C/rpc"
@@ -50,121 +39,144 @@ def getContractInfo(chain):
 
 def scanBlocks(chain):
     print(f"\n=== Starting scanBlocks for {chain} chain ===")
+    
+    # Connect to chains and get info
     source_w3 = connectTo('source')
     dest_w3 = connectTo('destination')
-
+    
     source_info = getContractInfo('source')
     dest_info = getContractInfo('destination')
-
+    
     source_contract = source_w3.eth.contract(address=source_info['address'], abi=source_info['abi'])
     dest_contract = dest_w3.eth.contract(address=dest_info['address'], abi=dest_info['abi'])
 
+    # Account setup
     if chain == 'source':
-        key_info = dest_info
+        key_info = dest_info  # For wrapping, we need destination keys
     else:
-        key_info = source_info
+        key_info = source_info  # For unwrapping, we need source keys
 
     private_key = key_info.get('private_key')
     account_address = key_info.get('public_key')
-    print(f"Using account: {account_address}")
+    print(f"Active account: {account_address}")
 
     # Get block range
-    if chain == 'source':
-        current_block = source_w3.eth.block_number
-    else:
-        current_block = dest_w3.eth.block_number
-
+    current_block = source_w3.eth.block_number if chain == 'source' else dest_w3.eth.block_number
     start_block = max(0, current_block - 5)
     end_block = current_block
     print(f"Scanning blocks {start_block} - {end_block} on {chain}")
 
-    # Check balances for debugging
-    # Known wrapped token address from previous output
-    wrapped_token_address = "0x87D6538156aF81C500aaeEB6e61ceDfA04DE5e67"
-    token_contract = dest_w3.eth.contract(address=wrapped_token_address, abi=ERC20_ABI)
-    balance = token_contract.functions.balanceOf(account_address).call()
-    print(f"\nWrapped token balance for {account_address}: {balance}")
-
     if chain == 'source':
+        # Handle Deposit -> Wrap flow
         try:
-            deposit_filter = source_contract.events.Deposit.create_filter(fromBlock=start_block, toBlock=end_block)
-            events = deposit_filter.get_all_entries()
-            print(f"Found {len(events)} Deposit event(s).")
+            deposits = source_contract.events.Deposit.create_filter(
+                fromBlock=start_block, 
+                toBlock=end_block
+            ).get_all_entries()
 
-            for evt in events:
+            print(f"Found {len(deposits)} Deposit event(s).")
+            for evt in deposits:
                 token = evt.args['token']
                 recipient = evt.args['recipient']
                 amount = evt.args['amount']
-                tx_hash = evt.transactionHash.hex()
-                print(f"Processing Deposit: token={token}, recipient={recipient}, amount={amount}")
+                print(f"\nProcessing Deposit:")
+                print(f"Token: {token}")
+                print(f"Recipient: {recipient}")
+                print(f"Amount: {amount}")
 
                 try:
+                    # Verify warden role
                     has_role = dest_contract.functions.hasRole(WARDEN_ROLE, account_address).call()
                     print(f"Has WARDEN_ROLE on destination: {has_role}")
 
+                    # Send wrap transaction
                     nonce = dest_w3.eth.get_transaction_count(account_address)
                     gas_price = dest_w3.eth.gas_price
-
+                    
                     txn = dest_contract.functions.wrap(token, recipient, amount).build_transaction({
                         'chainId': dest_w3.eth.chain_id,
                         'gas': 200000,
                         'gasPrice': min(gas_price, 10000000000),
                         'nonce': nonce,
+                        'from': account_address
                     })
 
                     signed_txn = dest_w3.eth.account.sign_transaction(txn, private_key)
                     tx_hash = dest_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-                    print(f"wrap() transaction sent: {tx_hash.hex()}")
+                    print(f"Wrap transaction sent: {tx_hash.hex()}")
 
                     receipt = dest_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-                    print(f"Transaction status: {'success' if receipt.status == 1 else 'failed'}")
+                    if receipt.status == 1:
+                        print("Wrap transaction successful")
+                    else:
+                        print("Wrap transaction failed")
 
                 except Exception as e:
-                    print(f"Error in wrap process: {e}")
+                    print(f"Error in wrap: {str(e)}")
 
         except Exception as e:
-            print(f"Error in Deposit processing: {e}")
+            print(f"Error handling deposits: {str(e)}")
 
     else:  # destination chain
+        # Handle Unwrap -> Withdraw flow
         try:
-            print("\n=== Looking for Unwrap events ===")
-            unwrap_filter = dest_contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
-            events = unwrap_filter.get_all_entries()
-            print(f"Found {len(events)} Unwrap event(s).")
+            unwraps = dest_contract.events.Unwrap.create_filter(
+                fromBlock=start_block, 
+                toBlock=end_block
+            ).get_all_entries()
 
-            for evt in events:
+            print(f"Found {len(unwraps)} Unwrap event(s).")
+            for evt in unwraps:
                 try:
+                    underlying_token = evt.args['underlying_token']
+                    wrapped_token = evt.args['wrapped_token']
+                    from_address = evt.args['frm']
+                    to_address = evt.args['to']
+                    amount = evt.args['amount']
+
+                    print(f"\nProcessing Unwrap:")
+                    print(f"From: {from_address}")
+                    print(f"To: {to_address}")
+                    print(f"Underlying token: {underlying_token}")
+                    print(f"Wrapped token: {wrapped_token}")
+                    print(f"Amount: {amount}")
+
+                    # Verify warden role
                     has_role = source_contract.functions.hasRole(WARDEN_ROLE, account_address).call()
                     print(f"Has WARDEN_ROLE on source: {has_role}")
 
                     if has_role:
-                        underlying_token = evt.args['underlying_token']
-                        to = evt.args['to']
-                        amount = evt.args['amount']
-
-                        # Check wrapped token balance before attempting withdraw
-                        wrap_bal = token_contract.functions.balanceOf(evt.args['frm']).call()
-                        print(f"Sender's wrapped token balance: {wrap_bal}")
-
                         nonce = source_w3.eth.get_transaction_count(account_address)
+                        gas_price = source_w3.eth.gas_price
+
                         txn = source_contract.functions.withdraw(
                             underlying_token,
-                            to,
+                            to_address,
                             amount
                         ).build_transaction({
                             'chainId': source_w3.eth.chain_id,
                             'gas': 200000,
-                            'gasPrice': source_w3.eth.gas_price,
+                            'gasPrice': min(gas_price, 10000000000),
                             'nonce': nonce,
                             'from': account_address
                         })
 
                         signed_txn = source_w3.eth.account.sign_transaction(txn, private_key)
                         tx_hash = source_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-                        print(f"withdraw() transaction sent: {tx_hash.hex()}")
+                        print(f"Withdraw transaction sent: {tx_hash.hex()}")
+
+                        receipt = source_w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+                        if receipt.status == 1:
+                            print("Withdraw transaction successful")
+                        else:
+                            print("Withdraw transaction failed")
+                    else:
+                        print("Account doesn't have WARDEN_ROLE, skipping withdrawal")
 
                 except Exception as e:
-                    print(f"Error processing event: {e}")
+                    print(f"Error processing unwrap: {str(e)}")
 
         except Exception as e:
-            print(f"Error scanning for Unwrap events: {e}")
+            print(f"Error scanning unwraps: {str(e)}")
+
+    print("=== scanBlocks completed ===")
