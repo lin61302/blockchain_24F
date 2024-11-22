@@ -7,22 +7,6 @@ from pathlib import Path
 contract_info = "contract_info.json"
 WARDEN_ROLE = "0xa95a5379b182f9ab2dea1336b28c22442227353b86d7e0a968f68d98add11c07"
 
-# ERC20 token ABI for approve
-ERC20_ABI = [
-    {
-        "constant": False,
-        "inputs": [
-            {"name": "spender", "type": "address"},
-            {"name": "amount", "type": "uint256"}
-        ],
-        "name": "approve",
-        "outputs": [{"name": "", "type": "bool"}],
-        "payable": False,
-        "stateMutability": "nonpayable",
-        "type": "function"
-    }
-]
-
 def connectTo(chain):
     if chain == 'source':
         api_url = "https://api.avax-test.network/ext/bc/C/rpc"
@@ -65,136 +49,74 @@ def scanBlocks(chain):
     source_contract = source_w3.eth.contract(address=source_info['address'], abi=source_info['abi'])
     dest_contract = dest_w3.eth.contract(address=dest_info['address'], abi=dest_info['abi'])
 
-    if chain == 'source':
-        private_key = dest_info.get('private_key')
-        account_address = dest_info.get('public_key')
-        current_block = source_w3.eth.block_number
-    else:
-        private_key = source_info.get('private_key')
-        account_address = source_info.get('public_key')
-        current_block = dest_w3.eth.block_number
+    # We always need the source account for withdraw
+    source_account = source_info.get('public_key')
+    source_key = source_info.get('private_key')
 
-    start_block = max(0, current_block - 5)
-    end_block = current_block
-    print(f"Scanning blocks {start_block} - {end_block} on {chain}")
+    start_block = 0
+    end_block = 0
 
     if chain == 'source':
+        end_block = source_w3.eth.block_number
+        start_block = max(0, end_block - 5)
+        
         try:
-            deposits = source_contract.events.Deposit.create_filter(
-                fromBlock=start_block, toBlock=end_block).get_all_entries()
-            
-            print(f"Found {len(deposits)} Deposit event(s)")
-            for evt in deposits:
-                token = evt.args['token']
-                recipient = evt.args['recipient']
-                amount = evt.args['amount']
+            event_filter = source_contract.events.Deposit.create_filter(fromBlock=start_block, toBlock=end_block)
+            events = event_filter.get_all_entries()
+            print(f"Found {len(events)} Deposit event(s).")
 
-                print(f"\nProcessing Deposit:")
-                print(f"Token: {token}")
-                print(f"Recipient: {recipient}")
-                print(f"Amount: {amount}")
-
+            for evt in events:
                 try:
-                    nonce = dest_w3.eth.get_transaction_count(account_address)
-                    gas_price = min(dest_w3.eth.gas_price, 10000000000)
-
-                    txn = dest_contract.functions.wrap(token, recipient, amount).build_transaction({
+                    txn = dest_contract.functions.wrap(
+                        evt.args['token'],
+                        evt.args['recipient'],
+                        evt.args['amount']
+                    ).build_transaction({
                         'chainId': dest_w3.eth.chain_id,
                         'gas': 200000,
-                        'gasPrice': gas_price,
-                        'nonce': nonce
+                        'gasPrice': min(dest_w3.eth.gas_price, 10000000000),
+                        'nonce': dest_w3.eth.get_transaction_count(source_account)
                     })
 
-                    signed_txn = dest_w3.eth.account.sign_transaction(txn, private_key)
-                    tx_hash = dest_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                    signed = dest_w3.eth.account.sign_transaction(txn, source_key)
+                    tx_hash = dest_w3.eth.send_raw_transaction(signed.rawTransaction)
                     print(f"Wrap transaction sent: {tx_hash.hex()}")
 
-                    receipt = dest_w3.eth.wait_for_transaction_receipt(tx_hash)
-                    print(f"Wrap status: {'success' if receipt.status == 1 else 'failed'}")
-
                 except Exception as e:
-                    print(f"Error in wrap: {e}")
-
+                    print(f"Error sending wrap: {e}")
+                    
         except Exception as e:
             print(f"Error processing deposits: {e}")
 
     else:  # destination chain
+        end_block = dest_w3.eth.block_number
+        start_block = max(0, end_block - 5)
+
         try:
-            unwraps = dest_contract.events.Unwrap.create_filter(
-                fromBlock=start_block, toBlock=end_block).get_all_entries()
-            
-            print(f"Found {len(unwraps)} Unwrap event(s)")
-            for evt in unwraps:
-                underlying_token = evt.args['underlying_token']
-                wrapped_token = evt.args['wrapped_token']
-                frm = evt.args['frm']
-                to = evt.args['to']
-                amount = evt.args['amount']
+            event_filter = dest_contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
+            events = event_filter.get_all_entries()
+            print(f"Found {len(events)} Unwrap event(s).")
 
-                print(f"\nProcessing Unwrap:")
-                print(f"From: {frm}")
-                print(f"To: {to}")
-                print(f"Underlying token: {underlying_token}")
-                print(f"Wrapped token: {wrapped_token}")
-                print(f"Amount: {amount}")
-
+            for evt in events:
                 try:
-                    # First, approve wrapped token for burning
-                    wrapped_token_contract = dest_w3.eth.contract(address=wrapped_token, abi=ERC20_ABI)
-                    nonce = dest_w3.eth.get_transaction_count(account_address)
-                    gas_price = min(dest_w3.eth.gas_price, 10000000000)
-
-                    # Approve wrapped token for burning
-                    approve_txn = wrapped_token_contract.functions.approve(
-                        dest_contract.address, amount
-                    ).build_transaction({
-                        'chainId': dest_w3.eth.chain_id,
-                        'gas': 100000,
-                        'gasPrice': gas_price,
-                        'nonce': nonce
-                    })
-
-                    signed_approve = dest_w3.eth.account.sign_transaction(approve_txn, private_key)
-                    approve_hash = dest_w3.eth.send_raw_transaction(signed_approve.rawTransaction)
-                    print(f"Approve transaction sent: {approve_hash.hex()}")
-                    dest_w3.eth.wait_for_transaction_receipt(approve_hash)
-
-                    # Now unwrap
-                    nonce = dest_w3.eth.get_transaction_count(account_address)
-                    txn = dest_contract.functions.unwrap(wrapped_token, to, amount).build_transaction({
-                        'chainId': dest_w3.eth.chain_id,
-                        'gas': 200000,
-                        'gasPrice': gas_price,
-                        'nonce': nonce
-                    })
-
-                    signed_txn = dest_w3.eth.account.sign_transaction(txn, private_key)
-                    tx_hash = dest_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-                    print(f"Unwrap transaction sent: {tx_hash.hex()}")
-
-                    receipt = dest_w3.eth.wait_for_transaction_receipt(tx_hash)
-                    print(f"Unwrap status: {'success' if receipt.status == 1 else 'failed'}")
-
-                    # Now handle withdraw on source chain
-                    nonce = source_w3.eth.get_transaction_count(account_address)
-                    withdraw_txn = source_contract.functions.withdraw(
-                        underlying_token, to, amount
+                    # Directly call withdraw on source contract
+                    txn = source_contract.functions.withdraw(
+                        evt.args['underlying_token'],
+                        evt.args['to'],
+                        evt.args['amount']
                     ).build_transaction({
                         'chainId': source_w3.eth.chain_id,
                         'gas': 200000,
                         'gasPrice': min(source_w3.eth.gas_price, 10000000000),
-                        'nonce': nonce
+                        'nonce': source_w3.eth.get_transaction_count(source_account)
                     })
 
-                    signed_withdraw = source_w3.eth.account.sign_transaction(withdraw_txn, private_key)
-                    withdraw_hash = source_w3.eth.send_raw_transaction(signed_withdraw.rawTransaction)
-                    print(f"Withdraw transaction sent: {withdraw_hash.hex()}")
-
-                    withdraw_receipt = source_w3.eth.wait_for_transaction_receipt(withdraw_hash)
-                    print(f"Withdraw status: {'success' if withdraw_receipt.status == 1 else 'failed'}")
+                    signed = source_w3.eth.account.sign_transaction(txn, source_key)
+                    tx_hash = source_w3.eth.send_raw_transaction(signed.rawTransaction)
+                    print(f"Withdraw transaction sent: {tx_hash.hex()}")
 
                 except Exception as e:
-                    print(f"Error in unwrap/withdraw: {str(e)}")
+                    print(f"Error sending withdraw: {e}")
 
         except Exception as e:
-            print(f"Error processing unwraps: {str(e)}")
+            print(f"Error processing unwraps: {e}")
