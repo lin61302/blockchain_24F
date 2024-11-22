@@ -94,7 +94,6 @@ def scanBlocks(chain):
         return
 
     # Define WARDEN accounts and keys for both chains
-    # Assuming separate WARDEN accounts for source and destination chains
     source_warden = Web3.to_checksum_address(source_info['public_key'])
     source_private_key = source_info.get('private_key')
     
