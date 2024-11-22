@@ -60,12 +60,12 @@ def scanBlocks(chain):
         return
 
     # Verify connections
-    if not w3.isConnected():
-        print(f"Failed to connect to {chain}")
-        return
-    if not w3_other.isConnected():
-        print(f"Failed to connect to {other_chain}")
-        return
+    # if not w3.isConnected():
+    #     print(f"Failed to connect to {chain}")
+    #     return
+    # if not w3_other.isConnected():
+    #     print(f"Failed to connect to {other_chain}")
+    #     return
 
     # Load contract info for both chains
     contract_info_chain = getContractInfo(chain)
