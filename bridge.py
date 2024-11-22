@@ -43,7 +43,6 @@ def scanBlocks(chain):
 
     other_chain = 'destination' if chain == 'source' else 'source'
     
-    # Connect to both chains
     w3 = connectTo(chain)
     w3_other = connectTo(other_chain)
 
@@ -51,17 +50,14 @@ def scanBlocks(chain):
         print("Failed to connect to one or both chains.")
         return
 
-    # Load contract info
     contract_info_chain = getContractInfo(chain)
     contract_info_other_chain = getContractInfo(other_chain)
 
-    # Get contract addresses and ABIs
     contract_address = contract_info_chain['address']
     contract_abi = contract_info_chain['abi']
     contract_address_other = contract_info_other_chain['address']
     contract_abi_other = contract_info_other_chain['abi']
 
-    # Load private key and account address
     private_key = contract_info_other_chain.get('private_key')
     account_address = contract_info_other_chain.get('public_key')
 
@@ -69,14 +65,12 @@ def scanBlocks(chain):
         print(f"Missing private_key or public_key in contract_info for '{other_chain}'")
         return
 
-    # Get latest block number
     latest_block = w3.eth.block_number
     start_block = max(0, latest_block - 5)
     end_block = latest_block
 
     print(f"Scanning blocks {start_block} - {end_block} on {chain}")
 
-    # Initialize contracts
     try:
         contract = w3.eth.contract(address=contract_address, abi=contract_abi)
         contract_other = w3_other.eth.contract(address=contract_address_other, abi=contract_abi_other)
@@ -99,12 +93,11 @@ def scanBlocks(chain):
 
                 try:
                     nonce = w3_other.eth.get_transaction_count(account_address)
-                    gas_price = min(20_000_000_000, w3_other.eth.gas_price)  # Cap at 20 Gwei
+                    gas_price = w3_other.eth.gas_price
 
-                    # Build wrap transaction
                     txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
                         'chainId': w3_other.eth.chain_id,
-                        'gas': 200000,  # Lower gas limit
+                        'gas': 500000,
                         'gasPrice': gas_price,
                         'nonce': nonce,
                     })
@@ -123,29 +116,33 @@ def scanBlocks(chain):
                     print(f"Failed to send wrap() transaction: {e}")
 
         except Exception as e:
-            print(f"Error creating event filter for 'Deposit': {e}")
-            return
+            print(f"Error processing Deposit events: {e}")
 
-    else:  # chain == 'destination'
+    else:  # destination chain
         try:
             event_filter = contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
             events = event_filter.get_all_entries()
             print(f"Found {len(events)} Unwrap event(s).")
 
             for evt in events:
-                underlying_token = evt.args['underlying_token']
+                wrapped_token = evt.args['wrapped_token']  # Use wrapped_token from event
                 to = evt.args['to']
                 amount = evt.args['amount']
                 tx_hash = evt.transactionHash.hex()
+                print(f"Found Unwrap event: wrapped_token={wrapped_token}, to={to}, amount={amount}, tx_hash={tx_hash}")
 
                 try:
                     nonce = w3_other.eth.get_transaction_count(account_address)
-                    gas_price = min(20_000_000_000, w3_other.eth.gas_price)  # Cap at 20 Gwei
+                    gas_price = w3_other.eth.gas_price
 
-                    # Build withdraw transaction
-                    txn = contract_other.functions.withdraw(underlying_token, to, amount).build_transaction({
+                    # Pass wrapped_token instead of underlying_token
+                    txn = contract_other.functions.withdraw(
+                        wrapped_token,  # Change this from underlying_token to wrapped_token
+                        to,
+                        amount
+                    ).build_transaction({
                         'chainId': w3_other.eth.chain_id,
-                        'gas': 200000,  # Lower gas limit
+                        'gas': 500000,
                         'gasPrice': gas_price,
                         'nonce': nonce,
                     })
@@ -164,5 +161,4 @@ def scanBlocks(chain):
                     print(f"Failed to send withdraw() transaction: {e}")
 
         except Exception as e:
-            print(f"Error creating event filter for 'Unwrap': {e}")
-            return
+            print(f"Error processing Unwrap events: {e}")
