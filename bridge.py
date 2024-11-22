@@ -83,9 +83,9 @@ def scanBlocks(chain):
     account_address = contract_info_other_chain['public_key']  # Public address of the account
 
     # Verify account address
-    if not Web3.isAddress(account_address):
-        print(f"Invalid account address: {account_address}")
-        return
+    # if not Web3.isAddress(account_address):
+    #     print(f"Invalid account address: {account_address}")
+    #     return
 
     # Get the latest block number on the chain
     latest_block = w3.eth.block_number
