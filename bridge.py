@@ -156,10 +156,10 @@ def scanBlocks(chain):
                         'nonce': nonce,
                         'from': account_address  # Explicitly set from address
                     })
-                    print(txn)
+                    print('txn:', txn)
 
                     signed_txn = w3_other.eth.account.sign_transaction(txn, private_key)
-                    print(signed_txn)
+                    print('signed_txn',signed_txn)
                     tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
                     print(f"withdraw() transaction sent on {other_chain}: tx_hash={tx_hash.hex()}")
 
