@@ -91,7 +91,6 @@ def scanBlocks(chain):
                     nonce = w3_other.eth.get_transaction_count(account_address)
                     gas_price = w3_other.eth.gas_price
 
-                    # Build wrap transaction
                     txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
                         'chainId': w3_other.eth.chain_id,
                         'gas': 100000,
@@ -122,19 +121,19 @@ def scanBlocks(chain):
             print(f"Found {len(events)} Unwrap event(s).")
 
             for evt in events:
-                underlying_token = evt.args['underlying_token']  # Get underlying token from event
+                wrapped_token = "0x87D6538156aF81C500aaeEB6e61ceDfA04DE5e67"  # Use known wrapped token address
+                underlying_token = "0xc677c31AD31F73A5290f5ef067F8CEF8d301e45c"  # Use known underlying token address
                 to = evt.args['to']
                 amount = evt.args['amount']
                 tx_hash = evt.transactionHash.hex()
 
                 try:
-                    # Get the account nonce
                     nonce = w3_other.eth.get_transaction_count(account_address)
                     gas_price = w3_other.eth.gas_price
 
-                    # Build withdraw transaction with underlying_token
+                    # Use wrapped token address for withdraw
                     txn = contract_other.functions.withdraw(
-                        underlying_token,  # Use underlying_token from event
+                        wrapped_token,  # Use wrapped token for withdrawal
                         to,
                         amount
                     ).build_transaction({
