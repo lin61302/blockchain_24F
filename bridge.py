@@ -44,14 +44,6 @@ def getContractInfo(chain):
     return contracts[chain]
 
 def scanBlocks(chain):
-    """
-    chain - (string) should be either "source" or "destination"
-    Scan the last 5 blocks of the source and destination chains
-    Look for 'Deposit' events on the source chain and 'Unwrap' events on the destination chain
-    When Deposit events are found on the source chain, call the 'wrap' function on the destination chain
-    When Unwrap events are found on the destination chain, call the 'withdraw' function on the source chain
-    """
-
     if chain not in ['source', 'destination']:
         print(f"Invalid chain: {chain}")
         return
@@ -65,6 +57,14 @@ def scanBlocks(chain):
 
     if w3 is None or w3_other is None:
         print("Failed to connect to one or both chains.")
+        return
+
+    # Verify connections
+    if not w3.isConnected():
+        print(f"Failed to connect to {chain}")
+        return
+    if not w3_other.isConnected():
+        print(f"Failed to connect to {other_chain}")
         return
 
     # Load contract info for both chains
@@ -82,6 +82,11 @@ def scanBlocks(chain):
     private_key = contract_info_other_chain['private_key']  # Private key for signing transactions
     account_address = contract_info_other_chain['public_key']  # Public address of the account
 
+    # Verify account address
+    if not Web3.isAddress(account_address):
+        print(f"Invalid account address: {account_address}")
+        return
+
     # Get the latest block number on the chain
     latest_block = w3.eth.block_number
 
@@ -98,7 +103,6 @@ def scanBlocks(chain):
     # Depending on the chain, look for specific events
     if chain == 'source':
         # Look for 'Deposit' events
-        # Deposit(address indexed token, address indexed recipient, uint256 amount)
         event_filter = contract.events.Deposit.create_filter(fromBlock=start_block, toBlock=end_block)
         events = event_filter.get_all_entries()
         for evt in events:
@@ -110,9 +114,8 @@ def scanBlocks(chain):
             print(f"Found Deposit event: token={token}, recipient={recipient}, amount={amount}, tx_hash={tx_hash}")
 
             # Now, call wrap() function on the destination chain
-            # wrap(address _underlying_token, address _recipient, uint256 _amount)
             # Build transaction
-            nonce = web3.eth.getTransactionCount(account_address)
+            nonce = w3_other.eth.get_transaction_count(account_address)
             txn = contract_other.functions.wrap(token, recipient, amount).build_transaction({
                 'chainId': w3_other.eth.chain_id,
                 'gas': 500000,
@@ -128,7 +131,6 @@ def scanBlocks(chain):
     else:
         # chain == 'destination'
         # Look for 'Unwrap' events
-        # Unwrap(address indexed underlying_token, address indexed wrapped_token, address frm, address indexed to, uint256 amount)
         event_filter = contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
         events = event_filter.get_all_entries()
         for evt in events:
@@ -142,9 +144,8 @@ def scanBlocks(chain):
             print(f"Found Unwrap event: underlying_token={underlying_token}, wrapped_token={wrapped_token}, frm={frm}, to={to}, amount={amount}, tx_hash={tx_hash}")
 
             # Now, call withdraw() function on the source chain
-            # withdraw(address _token, address _recipient, uint256 _amount)
             # Build transaction
-            nonce = web3.eth.getTransactionCount(account_address)
+            nonce = w3_other.eth.get_transaction_count(account_address)
             txn = contract_other.functions.withdraw(underlying_token, to, amount).build_transaction({
                 'chainId': w3_other.eth.chain_id,
                 'gas': 500000,
@@ -156,3 +157,4 @@ def scanBlocks(chain):
             # Send transaction
             tx_hash = w3_other.eth.send_raw_transaction(signed_txn.rawTransaction)
             print(f"withdraw() transaction sent on {other_chain}: tx_hash={tx_hash.hex()}")
+
