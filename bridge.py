@@ -69,7 +69,7 @@ def get_revert_reason(w3, tx_hash):
 
         # Attempt to call the transaction to get the revert reason
         try:
-            w3.eth.call(tx, block_identifier=tx_receipt.blockNumber)
+            w3.eth.call(tx)
         except Exception as e:
             revert_reason = str(e)
             return revert_reason
@@ -192,10 +192,14 @@ def scanBlocks(chain):
                         # Attempt to get revert reason
                         revert_reason = get_revert_reason(dest_w3, tx_hash_sent)
                         print(f"Revert Reason: {revert_reason}")
-                        
+
                 except Exception as e:
-                    print(f"Error scanning deposits: {e}")
+                    print(f"Error in wrap: {e}")
                     traceback.print_exc()
+
+        except Exception as e:
+            print(f"Error scanning deposits: {e}")
+            traceback.print_exc()
 
     else:  # chain == 'destination'
         # Handle Unwrap events: transfer underlying tokens on source chain
