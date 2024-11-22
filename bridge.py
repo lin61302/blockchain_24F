@@ -6,6 +6,25 @@ from pathlib import Path
 
 contract_info = "contract_info.json"
 WARDEN_ROLE = "0xa95a5379b182f9ab2dea1336b28c22442227353b86d7e0a968f68d98add11c07"
+ERC20_ABI = [
+    {
+        "constant": True,
+        "inputs": [{"name": "_owner", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "balance", "type": "uint256"}],
+        "type": "function"
+    },
+    {
+        "constant": False,
+        "inputs": [
+            {"name": "_spender", "type": "address"},
+            {"name": "_value", "type": "uint256"}
+        ],
+        "name": "approve",
+        "outputs": [{"name": "", "type": "bool"}],
+        "type": "function"
+    }
+]
 
 def connectTo(chain):
     if chain == 'source':
@@ -49,8 +68,9 @@ def scanBlocks(chain):
     source_contract = source_w3.eth.contract(address=source_info['address'], abi=source_info['abi'])
     dest_contract = dest_w3.eth.contract(address=dest_info['address'], abi=dest_info['abi'])
 
+    your_address = "0x634D745F4f3d26759Dd6836Ba25B16Ba3050d3D6"  # Your MetaMask address
     private_key = source_info.get('private_key')
-    account_address = source_info.get('public_key')
+    WRAPPED_TOKEN = "0x87D6538156aF81C500aaeEB6e61ceDfA04DE5e67"  # Known wrapped token
 
     if chain == 'source':
         current_block = source_w3.eth.block_number
@@ -65,47 +85,45 @@ def scanBlocks(chain):
             print(f"Found {len(events)} Deposit event(s)")
 
             for evt in events:
-                token = evt.args['token']
-                recipient = evt.args['recipient']
-                amount = evt.args['amount']
-
-                print(f"\nProcessing Deposit: recipient={recipient}")
-                
                 try:
-                    nonce = dest_w3.eth.get_transaction_count(account_address)
+                    nonce = dest_w3.eth.get_transaction_count(your_address)
                     gas_price = min(dest_w3.eth.gas_price, 10000000000)
 
                     txn = dest_contract.functions.wrap(
-                        token,
-                        recipient,
-                        amount
+                        evt.args['token'],
+                        evt.args['recipient'],
+                        evt.args['amount']
                     ).build_transaction({
                         'chainId': dest_w3.eth.chain_id,
                         'gas': 200000,
                         'gasPrice': gas_price,
                         'nonce': nonce,
-                        'from': account_address
+                        'from': your_address
                     })
 
                     signed_txn = dest_w3.eth.account.sign_transaction(txn, private_key)
                     tx_hash = dest_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
                     print(f"Wrap transaction sent: {tx_hash.hex()}")
 
-                    # Wait for receipt just to be sure
-                    dest_w3.eth.wait_for_transaction_receipt(tx_hash)
-
                 except Exception as e:
                     print(f"Error in wrap: {e}")
 
         except Exception as e:
-            print(f"Error in source chain processing: {e}")
+            print(f"Error in deposits: {e}")
 
-    else:  # destination chain processing
+    else:  # destination chain
         current_block = dest_w3.eth.block_number
         start_block = max(0, current_block - 5)
         end_block = current_block
 
         print(f"Scanning blocks {start_block} - {end_block} on destination chain")
+
+        # Check balances
+        wrapped_token = dest_w3.eth.contract(address=WRAPPED_TOKEN, abi=ERC20_ABI)
+        balance = wrapped_token.functions.balanceOf("0x6E346B1277e545c5F4A9BB602A220B34581D068B").call()
+        print(f"Recipient's wrapped token balance: {balance}")
+        my_balance = wrapped_token.functions.balanceOf(your_address).call()
+        print(f"Your wrapped token balance: {my_balance}")
         
         try:
             unwrap_filter = dest_contract.events.Unwrap.create_filter(fromBlock=start_block, toBlock=end_block)
@@ -120,33 +138,34 @@ def scanBlocks(chain):
                     to = evt.args['to']
                     amount = evt.args['amount']
 
-                    print(f"\nProcessing Unwrap: from={frm}, to={to}")
+                    print(f"Processing Unwrap:")
+                    print(f"From: {frm}")
+                    print(f"To: {to}")
+                    print(f"Underlying: {underlying_token}")
+                    print(f"Wrapped: {wrapped_token}")
+                    print(f"Amount: {amount}")
 
-                    # Build and send withdraw transaction
-                    nonce = source_w3.eth.get_transaction_count(account_address)
+                    nonce = source_w3.eth.get_transaction_count(your_address)
                     gas_price = min(source_w3.eth.gas_price, 10000000000)
 
                     txn = source_contract.functions.withdraw(
-                        underlying_token,  # Use underlying token address
-                        to,               # Send to the recipient from unwrap event
-                        amount           # Use the same amount
+                        underlying_token,
+                        to,
+                        amount
                     ).build_transaction({
                         'chainId': source_w3.eth.chain_id,
                         'gas': 200000,
                         'gasPrice': gas_price,
                         'nonce': nonce,
-                        'from': account_address
+                        'from': your_address
                     })
 
                     signed_txn = source_w3.eth.account.sign_transaction(txn, private_key)
                     tx_hash = source_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
                     print(f"Withdraw transaction sent: {tx_hash.hex()}")
 
-                    # Wait for receipt just to be sure
-                    source_w3.eth.wait_for_transaction_receipt(tx_hash)
-
                 except Exception as e:
                     print(f"Error in withdraw: {e}")
 
         except Exception as e:
-            print(f"Error in destination chain processing: {e}")
+            print(f"Error in unwraps: {e}")
