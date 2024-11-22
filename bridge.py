@@ -94,9 +94,11 @@ def scanBlocks(chain):
         return
 
     # Define WARDEN accounts and keys for both chains
-    # Assuming the same WARDEN address is used on both chains
-    WARDEN = Web3.to_checksum_address("0x634D745F4f3d26759Dd6836Ba25B16Ba3050d3D6")
+    # Assuming separate WARDEN accounts for source and destination chains
+    source_warden = Web3.to_checksum_address(source_info['public_key'])
     source_private_key = source_info.get('private_key')
+    
+    dest_warden = Web3.to_checksum_address(dest_info['public_key'])
     dest_private_key = dest_info.get('private_key')
 
     if not source_private_key or not dest_private_key:
@@ -109,13 +111,13 @@ def scanBlocks(chain):
         start_block = max(0, current_block - 5)
         end_block = current_block
         print(f"Scanning blocks {start_block} - {end_block} on source")
-
+    
         try:
             deposits = source_contract.events.Deposit.create_filter(
                 fromBlock=start_block,
                 toBlock=end_block
             ).get_all_entries()
-
+    
             print(f"Found {len(deposits)} Deposit event(s)")
             for evt in deposits:
                 try:
@@ -124,11 +126,11 @@ def scanBlocks(chain):
                     amount = evt.args['amount']
                     tx_hash = evt.transactionHash.hex()
                     print(f"Found Deposit event: token={token}, recipient={recipient}, amount={amount}, tx_hash={tx_hash}")
-
+    
                     # Build wrap transaction on destination chain
-                    nonce = dest_w3.eth.get_transaction_count(WARDEN)
+                    nonce = dest_w3.eth.get_transaction_count(dest_warden)
                     gas_price = dest_w3.eth.gas_price
-
+    
                     txn = dest_contract.functions.wrap(
                         token,
                         recipient,
@@ -136,41 +138,41 @@ def scanBlocks(chain):
                     ).build_transaction({
                         'chainId': dest_w3.eth.chain_id,
                         'gas': 200000,  # Increased gas limit for wrap function
-                        'gasPrice': min(gas_price, 10000000000),  # 10 Gwei cap
+                        'gasPrice': min(gas_price, 10_000_000_000),  # 10 Gwei cap
                         'nonce': nonce,
-                        'from': WARDEN
+                        'from': dest_warden
                     })
-
+    
                     signed_txn = dest_w3.eth.account.sign_transaction(txn, dest_private_key)
                     tx_hash_sent = dest_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
                     print(f"Wrap tx sent on destination chain: {tx_hash_sent.hex()}")
-
+    
                     # Wait for receipt
                     receipt = dest_w3.eth.wait_for_transaction_receipt(tx_hash_sent, timeout=120)
                     if receipt.status == 1:
                         print(f"Wrap transaction successful: {tx_hash_sent.hex()}")
                     else:
                         print(f"Wrap transaction failed: {tx_hash_sent.hex()}")
-
+    
                 except Exception as e:
                     print(f"Error in wrap: {e}")
-
+    
         except Exception as e:
             print(f"Error scanning deposits: {e}")
-
+    
     else:  # chain == 'destination'
         # Handle Unwrap events: transfer underlying tokens on source chain
         current_block = dest_w3.eth.block_number
         start_block = max(0, current_block - 5)
         end_block = current_block
         print(f"Scanning blocks {start_block} - {end_block} on destination")
-
+    
         try:
             unwraps = dest_contract.events.Unwrap.create_filter(
                 fromBlock=start_block,
                 toBlock=end_block
             ).get_all_entries()
-
+    
             print(f"Found {len(unwraps)} Unwrap event(s)")
             for evt in unwraps:
                 try:
@@ -178,48 +180,48 @@ def scanBlocks(chain):
                     to = Web3.to_checksum_address(evt.args['to'])
                     amount = evt.args['amount']
                     frm = Web3.to_checksum_address(evt.args['frm'])
-
+    
                     print(f"\nProcessing Unwrap:")
                     print(f"From: {frm}")
                     print(f"To: {to}")
                     print(f"Token: {underlying_token}")
                     print(f"Amount: {amount}")
-
+    
                     # Initialize the underlying ERC20 token contract on the source chain
                     underlying_token_contract = source_w3.eth.contract(
                         address=underlying_token,
                         abi=ERC20_ABI
                     )
-
+    
                     # Build transaction to transfer underlying tokens to 'to' on source chain
-                    nonce = source_w3.eth.get_transaction_count(WARDEN)
+                    nonce = source_w3.eth.get_transaction_count(source_warden)
                     gas_price = source_w3.eth.gas_price
-
+    
                     txn = underlying_token_contract.functions.transfer(
                         to,
                         amount
                     ).build_transaction({
                         'chainId': source_w3.eth.chain_id,
                         'gas': 100000,  # Adjust gas limit as needed
-                        'gasPrice': min(gas_price, 10000000000),  # 10 Gwei cap
+                        'gasPrice': min(gas_price, 10_000_000_000),  # 10 Gwei cap
                         'nonce': nonce,
-                        'from': WARDEN
+                        'from': source_warden
                     })
-
+    
                     # Sign the transaction
                     signed_txn = source_w3.eth.account.sign_transaction(txn, source_private_key)
                     tx_hash_sent = source_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
                     print(f"Transfer tx sent on source chain: {tx_hash_sent.hex()}")
-
+    
                     # Wait for receipt
                     receipt = source_w3.eth.wait_for_transaction_receipt(tx_hash_sent, timeout=120)
                     if receipt.status == 1:
                         print(f"Transfer transaction successful: {tx_hash_sent.hex()}")
                     else:
                         print(f"Transfer transaction failed: {tx_hash_sent.hex()}")
-
+    
                 except Exception as e:
                     print(f"Error processing withdrawal: {e}")
-
+    
         except Exception as e:
             print(f"Error scanning unwraps: {e}")
