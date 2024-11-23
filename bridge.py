@@ -34,9 +34,9 @@ def connectTo(chain):
         return None
 
     w3 = Web3(Web3.HTTPProvider(api_url))
-    if not w3.isConnected():
-        print(f"Failed to connect to {chain} chain at {api_url}")
-        return None
+    # if not w3.isConnected():
+    #     print(f"Failed to connect to {chain} chain at {api_url}")
+    #     return None
     w3.middleware_onion.inject(geth_poa_middleware, layer=0)
     return w3
 
