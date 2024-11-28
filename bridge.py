@@ -217,77 +217,77 @@ def scanBlocks(chain):
             traceback.print_exc()
 
     else:  # chain == 'destination'
-    # Handle Unwrap events: call withdraw on source chain
-    current_block = dest_w3.eth.block_number
-    start_block = max(0, current_block - 5)
-    end_block = current_block
-    print(f"Scanning blocks {start_block} - {end_block} on destination")
-
-    try:
-        unwraps = dest_contract.events.Unwrap.create_filter(
-            fromBlock=start_block,
-            toBlock=end_block
-        ).get_all_entries()
-
-        print(f"Found {len(unwraps)} Unwrap event(s)")
-        for evt in unwraps:
-            try:
-                underlying_token = Web3.to_checksum_address(evt.args['underlying_token'])
-                to = Web3.to_checksum_address(evt.args['to'])
-                amount = evt.args['amount']
-                frm = Web3.to_checksum_address(evt.args['frm'])
-
-                print(f"\nProcessing Unwrap:")
-                print(f"  From: {frm}")
-                print(f"  To: {to}")
-                print(f"  Token: {underlying_token}")
-                print(f"  Amount: {amount}")
-
-                # Build transaction to call withdraw on the Source contract
-                nonce = source_w3.eth.get_transaction_count(source_warden)
-                gas_price = source_w3.eth.gas_price
-                gas_price = min(gas_price, 10_000_000_000)  # 10 Gwei cap
-
-                print(f"  Preparing to send withdraw transaction:")
-                print(f"    From (source WARDEN): {source_warden}")
-                print(f"    Token: {underlying_token}")
-                print(f"    Recipient: {to}")
-                print(f"    Amount: {amount}")
-                print(f"    Gas Price: {gas_price}")
-                print(f"    Nonce: {nonce}")
-
-                txn = source_contract.functions.withdraw(
-                    underlying_token,
-                    to,
-                    amount
-                ).build_transaction({
-                    'chainId': source_w3.eth.chain_id,
-                    'gas': 200000,  # Adjust gas limit as needed
-                    'gasPrice': gas_price,
-                    'nonce': nonce,
-                    'from': source_warden
-                })
-
-                # Sign the transaction
-                signed_txn = source_w3.eth.account.sign_transaction(txn, source_private_key)
-                tx_hash_sent = source_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
-                print(f"  Withdraw tx sent on source chain: {tx_hash_sent.hex()}")
-
-                # Wait for receipt
-                receipt = source_w3.eth.wait_for_transaction_receipt(tx_hash_sent, timeout=120)
-                if receipt.status == 1:
-                    print(f"  Withdraw transaction successful: {tx_hash_sent.hex()}")
-                else:
-                    print(f"  Withdraw transaction failed: {tx_hash_sent.hex()}")
-                    # Attempt to get revert reason
-                    revert_reason = get_revert_reason(source_w3, tx_hash_sent)
-                    print(f"  Revert Reason: {revert_reason}")
-
-            except Exception as e:
-                print(f"Error processing withdrawal: {e}")
-                traceback.print_exc()
-
-    except Exception as e:
-        print(f"Error scanning unwraps: {e}")
-        traceback.print_exc()
+        # Handle Unwrap events: call withdraw on source chain
+        current_block = dest_w3.eth.block_number
+        start_block = max(0, current_block - 5)
+        end_block = current_block
+        print(f"Scanning blocks {start_block} - {end_block} on destination")
+    
+        try:
+            unwraps = dest_contract.events.Unwrap.create_filter(
+                fromBlock=start_block,
+                toBlock=end_block
+            ).get_all_entries()
+    
+            print(f"Found {len(unwraps)} Unwrap event(s)")
+            for evt in unwraps:
+                try:
+                    underlying_token = Web3.to_checksum_address(evt.args['underlying_token'])
+                    to = Web3.to_checksum_address(evt.args['to'])
+                    amount = evt.args['amount']
+                    frm = Web3.to_checksum_address(evt.args['frm'])
+    
+                    print(f"\nProcessing Unwrap:")
+                    print(f"  From: {frm}")
+                    print(f"  To: {to}")
+                    print(f"  Token: {underlying_token}")
+                    print(f"  Amount: {amount}")
+    
+                    # Build transaction to call withdraw on the Source contract
+                    nonce = source_w3.eth.get_transaction_count(source_warden)
+                    gas_price = source_w3.eth.gas_price
+                    gas_price = min(gas_price, 10_000_000_000)  # 10 Gwei cap
+    
+                    print(f"  Preparing to send withdraw transaction:")
+                    print(f"    From (source WARDEN): {source_warden}")
+                    print(f"    Token: {underlying_token}")
+                    print(f"    Recipient: {to}")
+                    print(f"    Amount: {amount}")
+                    print(f"    Gas Price: {gas_price}")
+                    print(f"    Nonce: {nonce}")
+    
+                    txn = source_contract.functions.withdraw(
+                        underlying_token,
+                        to,
+                        amount
+                    ).build_transaction({
+                        'chainId': source_w3.eth.chain_id,
+                        'gas': 200000,  # Adjust gas limit as needed
+                        'gasPrice': gas_price,
+                        'nonce': nonce,
+                        'from': source_warden
+                    })
+    
+                    # Sign the transaction
+                    signed_txn = source_w3.eth.account.sign_transaction(txn, source_private_key)
+                    tx_hash_sent = source_w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                    print(f"  Withdraw tx sent on source chain: {tx_hash_sent.hex()}")
+    
+                    # Wait for receipt
+                    receipt = source_w3.eth.wait_for_transaction_receipt(tx_hash_sent, timeout=120)
+                    if receipt.status == 1:
+                        print(f"  Withdraw transaction successful: {tx_hash_sent.hex()}")
+                    else:
+                        print(f"  Withdraw transaction failed: {tx_hash_sent.hex()}")
+                        # Attempt to get revert reason
+                        revert_reason = get_revert_reason(source_w3, tx_hash_sent)
+                        print(f"  Revert Reason: {revert_reason}")
+    
+                except Exception as e:
+                    print(f"Error processing withdrawal: {e}")
+                    traceback.print_exc()
+    
+        except Exception as e:
+            print(f"Error scanning unwraps: {e}")
+            traceback.print_exc()
 
