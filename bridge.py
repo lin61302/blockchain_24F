@@ -156,10 +156,14 @@ def scanBlocks(chain):
             for evt in deposits:
                 try:
                     token = Web3.to_checksum_address(evt.args['token'])
-                    recipient = Web3.to_checksum_address(evt.args['recipient'])
+                    # Corrected recipient extraction
+                    try:
+                        depositor = Web3.to_checksum_address(evt.args['sender'])
+                    except KeyError:
+                        depositor = Web3.to_checksum_address(evt.args['recipient'])
                     amount = evt.args['amount']
                     tx_hash = evt.transactionHash.hex()
-                    print(f"Found Deposit event: token={token}, recipient={recipient}, amount={amount}, tx_hash={tx_hash}")
+                    print(f"Found Deposit event: token={token}, depositor={depositor}, amount={amount}, tx_hash={tx_hash}")
 
                     # Build wrap transaction on destination chain
                     nonce = dest_w3.eth.get_transaction_count(dest_warden)
@@ -169,14 +173,14 @@ def scanBlocks(chain):
                     print(f"Preparing to send wrap transaction:")
                     print(f"  From (destination WARDEN): {dest_warden}")
                     print(f"  Token: {token}")
-                    print(f"  Recipient: {recipient}")
+                    print(f"  Recipient (Depositor): {depositor}")
                     print(f"  Amount: {amount}")
                     print(f"  Gas Price: {gas_price}")
                     print(f"  Nonce: {nonce}")
 
                     txn = dest_contract.functions.wrap(
                         token,
-                        recipient,
+                        depositor,  # Use the depositor as the recipient
                         amount
                     ).build_transaction({
                         'chainId': dest_w3.eth.chain_id,
