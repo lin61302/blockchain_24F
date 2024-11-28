@@ -156,14 +156,13 @@ def scanBlocks(chain):
             for evt in deposits:
                 try:
                     token = Web3.to_checksum_address(evt.args['token'])
-                    # Corrected recipient extraction
-                    try:
-                        depositor = Web3.to_checksum_address(evt.args['sender'])
-                    except KeyError:
-                        depositor = Web3.to_checksum_address(evt.args['recipient'])
                     amount = evt.args['amount']
                     tx_hash = evt.transactionHash.hex()
-                    print(f"Found Deposit event: token={token}, depositor={depositor}, amount={amount}, tx_hash={tx_hash}")
+                    print(f"Found Deposit event: token={token}, amount={amount}, tx_hash={tx_hash}")
+
+                    # Use the destination WARDEN address as the recipient
+                    recipient = dest_warden
+                    print(f"Using Destination WARDEN Address as recipient: {recipient}")
 
                     # Build wrap transaction on destination chain
                     nonce = dest_w3.eth.get_transaction_count(dest_warden)
@@ -173,18 +172,18 @@ def scanBlocks(chain):
                     print(f"Preparing to send wrap transaction:")
                     print(f"  From (destination WARDEN): {dest_warden}")
                     print(f"  Token: {token}")
-                    print(f"  Recipient (Depositor): {depositor}")
+                    print(f"  Recipient (Destination WARDEN): {recipient}")
                     print(f"  Amount: {amount}")
                     print(f"  Gas Price: {gas_price}")
                     print(f"  Nonce: {nonce}")
 
                     txn = dest_contract.functions.wrap(
                         token,
-                        depositor,  # Use the depositor as the recipient
+                        recipient,  # Set recipient to dest_warden
                         amount
                     ).build_transaction({
                         'chainId': dest_w3.eth.chain_id,
-                        'gas': 200000,  # Increased gas limit for wrap function
+                        'gas': 200000,
                         'gasPrice': gas_price,
                         'nonce': nonce,
                         'from': dest_warden
