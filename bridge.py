@@ -156,18 +156,14 @@ def scanBlocks(chain):
             for evt in deposits:
                 try:
                     token = Web3.to_checksum_address(evt.args['token'])
+                    # Corrected recipient extraction
+                    try:
+                        depositor = Web3.to_checksum_address(evt.args['sender'])
+                    except KeyError:
+                        depositor = Web3.to_checksum_address(evt.args['recipient'])
                     amount = evt.args['amount']
-                    tx_hash = evt.transactionHash
-                    tx_hash_hex = tx_hash.hex()
-                    print(f"Found Deposit event: token={token}, amount={amount}, tx_hash={tx_hash_hex}")
-
-                    # Get the 'from' address of the transaction (the depositor's address)
-                    tx = source_w3.eth.get_transaction(tx_hash)
-                    depositor = Web3.to_checksum_address(tx['from'])
-                    print(f"Depositor (from transaction): {depositor}")
-
-                    # Use the depositor's address as the recipient in the wrap function
-                    recipient = depositor
+                    tx_hash = evt.transactionHash.hex()
+                    print(f"Found Deposit event: token={token}, depositor={depositor}, amount={amount}, tx_hash={tx_hash}")
 
                     # Build wrap transaction on destination chain
                     nonce = dest_w3.eth.get_transaction_count(dest_warden)
@@ -177,18 +173,18 @@ def scanBlocks(chain):
                     print(f"Preparing to send wrap transaction:")
                     print(f"  From (destination WARDEN): {dest_warden}")
                     print(f"  Token: {token}")
-                    print(f"  Recipient (Depositor): {recipient}")
+                    print(f"  Recipient (Depositor): {depositor}")
                     print(f"  Amount: {amount}")
                     print(f"  Gas Price: {gas_price}")
                     print(f"  Nonce: {nonce}")
 
                     txn = dest_contract.functions.wrap(
                         token,
-                        recipient,  # Use the depositor's address
+                        depositor,  # Use the depositor as the recipient
                         amount
                     ).build_transaction({
                         'chainId': dest_w3.eth.chain_id,
-                        'gas': 200000,  # Adjust gas limit as needed
+                        'gas': 200000,  # Increased gas limit for wrap function
                         'gasPrice': gas_price,
                         'nonce': nonce,
                         'from': dest_warden
