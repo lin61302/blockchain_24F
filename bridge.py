@@ -121,11 +121,10 @@ def scanBlocks(chain):
     source_warden = Web3.to_checksum_address(source_info['public_key'])
     source_private_key = source_info.get('private_key')
     
-    # Use your personal account for destination WARDEN
     dest_warden = Web3.to_checksum_address(dest_info['public_key'])
     dest_private_key = dest_info.get('private_key')
-    
-    # Ensure that the destination WARDEN is your personal account
+
+    # Print WARDEN addresses to verify separation
     print(f"Source WARDEN Address: {source_warden}")
     print(f"Destination WARDEN Address: {dest_warden}")
 
@@ -155,8 +154,7 @@ def scanBlocks(chain):
                     tx_hash = evt.transactionHash.hex()
                     print(f"Found Deposit event: token={token}, amount={amount}, recipient={recipient}, tx_hash={tx_hash}")
 
-                    # Use your personal account as the recipient
-                    recipient = dest_warden
+                    # Use the recipient from the Deposit event
                     print(f"Recipient used in wrap transaction: {recipient}")
 
                     # Build wrap transaction on destination chain
