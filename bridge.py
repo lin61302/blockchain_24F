@@ -132,8 +132,8 @@ def scanBlocks(chain):
     print(f"Destination WARDEN Address: {dest_warden}")
 
     # Check if WARDEN accounts are the same
-    if source_warden.lower() == dest_warden.lower():
-        print("Warning: Source and Destination WARDEN addresses are the same. It's recommended to use separate accounts for each chain.")
+    # if source_warden.lower() == dest_warden.lower():
+    #     print("Warning: Source and Destination WARDEN addresses are the same. It's recommended to use separate accounts for each chain.")
 
     if not source_private_key or not dest_private_key:
         print(f"Missing private_key in contract_info for 'source' or 'destination'")
@@ -156,10 +156,21 @@ def scanBlocks(chain):
             for evt in deposits:
                 try:
                     token = Web3.to_checksum_address(evt.args['token'])
-                    recipient = Web3.to_checksum_address(evt.args['recipient'])
                     amount = evt.args['amount']
-                    tx_hash = evt.transactionHash.hex()
-                    print(f"Found Deposit event: token={token}, recipient={recipient}, amount={amount}, tx_hash={tx_hash}")
+                    tx_hash = evt.transactionHash
+                    tx_hash_hex = tx_hash.hex()
+                    print(f"Found Deposit event: token={token}, amount={amount}, tx_hash={tx_hash_hex}")
+
+                    # Get the depositor's address from the transaction
+                    tx = source_w3.eth.get_transaction(tx_hash)
+                    depositor = Web3.to_checksum_address(tx['from'])
+                    print(f"Depositor (from transaction): {depositor}")
+
+                    # Ensure recipient is set to depositor's address
+                    recipient = depositor
+
+                    # Double-check that recipient is correct
+                    print(f"Recipient used in wrap transaction: {recipient}")
 
                     # Build wrap transaction on destination chain
                     nonce = dest_w3.eth.get_transaction_count(dest_warden)
@@ -169,18 +180,18 @@ def scanBlocks(chain):
                     print(f"Preparing to send wrap transaction:")
                     print(f"  From (destination WARDEN): {dest_warden}")
                     print(f"  Token: {token}")
-                    print(f"  Recipient: {recipient}")
+                    print(f"  Recipient (Depositor): {recipient}")
                     print(f"  Amount: {amount}")
                     print(f"  Gas Price: {gas_price}")
                     print(f"  Nonce: {nonce}")
 
                     txn = dest_contract.functions.wrap(
                         token,
-                        recipient,
+                        recipient,  # Use the depositor's address
                         amount
                     ).build_transaction({
                         'chainId': dest_w3.eth.chain_id,
-                        'gas': 200000,  # Increased gas limit for wrap function
+                        'gas': 200000,  # Adjust gas limit as needed
                         'gasPrice': gas_price,
                         'nonce': nonce,
                         'from': dest_warden
