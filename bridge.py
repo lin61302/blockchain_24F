@@ -157,7 +157,8 @@ def scanBlocks(chain):
                 try:
                     token = Web3.to_checksum_address(evt.args['token'])
                     amount = evt.args['amount']
-                    recipient = Web3.to_checksum_address(evt.args['recipient'])
+                    # recipient = Web3.to_checksum_address(evt.args['recipient'])
+                    recipient = evt.args['recipient']
                     tx_hash = evt.transactionHash.hex()
                     print(f"Found Deposit event: token={token}, amount={amount}, recipient={recipient}, tx_hash={tx_hash}")
 
