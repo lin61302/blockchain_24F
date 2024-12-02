@@ -34,9 +34,6 @@ def connectTo(chain):
         return None
 
     w3 = Web3(Web3.HTTPProvider(api_url))
-    # if not w3.isConnected():
-    #     print(f"Failed to connect to {chain} chain at {api_url}")
-    #     return None
     w3.middleware_onion.inject(geth_poa_middleware, layer=0)
     return w3
 
@@ -131,10 +128,6 @@ def scanBlocks(chain):
     print(f"Source WARDEN Address: {source_warden}")
     print(f"Destination WARDEN Address: {dest_warden}")
 
-    # Check if WARDEN accounts are the same
-    # if source_warden.lower() == dest_warden.lower():
-    #     print("Warning: Source and Destination WARDEN addresses are the same. It's recommended to use separate accounts for each chain.")
-
     if not source_private_key or not dest_private_key:
         print(f"Missing private_key in contract_info for 'source' or 'destination'")
         return
@@ -157,11 +150,11 @@ def scanBlocks(chain):
                 try:
                     token = Web3.to_checksum_address(evt.args['token'])
                     amount = evt.args['amount']
+                    recipient = Web3.to_checksum_address(evt.args['recipient'])
                     tx_hash = evt.transactionHash.hex()
-                    print(f"Found Deposit event: token={token}, amount={amount}, tx_hash={tx_hash}")
+                    print(f"Found Deposit event: token={token}, amount={amount}, recipient={recipient}, tx_hash={tx_hash}")
 
-                    # Hardcode the recipient address to the AutoGrader's expected address
-                    recipient = Web3.to_checksum_address('0x6E346B1277e545c5F4A9BB602A220B34581D068B')
+                    # Use the recipient from the Deposit event
                     print(f"Recipient used in wrap transaction: {recipient}")
 
                     # Build wrap transaction on destination chain
@@ -214,7 +207,6 @@ def scanBlocks(chain):
     else:  # chain == 'destination'
         # Handle Unwrap events: transfer underlying tokens on source chain
         current_block = dest_w3.eth.block_number
-        print('current block: ', current_block)
         start_block = max(0, current_block - 5)
         end_block = current_block
         print(f"Scanning blocks {start_block} - {end_block} on destination")
@@ -224,7 +216,6 @@ def scanBlocks(chain):
                 fromBlock=start_block,
                 toBlock=end_block
             ).get_all_entries()
-            # print('unwraps:', unwraps)
 
             print(f"Found {len(unwraps)} Unwrap event(s)")
             for evt in unwraps:
