@@ -213,8 +213,8 @@ contract Destination is AccessControl {
     event Unwrap(
         address indexed underlying_token,
         address indexed wrapped_token,
-        address indexed from,
-        address to,
+        address from,
+        address indexed to,
         uint256 amount
     );
 
@@ -304,12 +304,17 @@ contract Destination is AccessControl {
 
     /**
      * @dev Burns BridgeTokens from the caller and initiates the unwrap process.
-     * Anyone can call this function to burn their own tokens.
      * @param _wrapped_token The address of the BridgeToken being unwrapped.
+     * @param _recipient The address on the source chain to receive the underlying tokens.
      * @param _amount The amount of tokens to burn and unwrap.
      */
-    function unwrap(address _wrapped_token, uint256 _amount) public {
+    function unwrap(
+        address _wrapped_token,
+        address _recipient,
+        uint256 _amount
+    ) public {
         require(_wrapped_token != address(0), "Invalid BridgeToken address");
+        require(_recipient != address(0), "Invalid recipient address");
         require(_amount > 0, "Amount must be greater than zero");
 
         // Verify that the wrapped token is recognized and mapped to an underlying token
@@ -332,7 +337,7 @@ contract Destination is AccessControl {
             underlyingTokenAddress,
             _wrapped_token,
             msg.sender, // from
-            msg.sender, // to (recipient on source chain)
+            _recipient, // to
             _amount
         );
     }
