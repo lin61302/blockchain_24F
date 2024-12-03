@@ -38,7 +38,6 @@ pragma solidity ^0.8.17;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
-
 contract BridgeToken is ERC20, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     address public underlying;
@@ -61,21 +60,5 @@ contract BridgeToken is ERC20, AccessControl {
     function burn(uint256 amount) public {
         // Allow token holders to burn their own tokens
         _burn(msg.sender, amount);
-    }
-
-    function burnFrom(address account, uint256 amount) public {
-        // Allow accounts with MINTER_ROLE to burn tokens from any account without allowance
-        if (hasRole(MINTER_ROLE, msg.sender)) {
-            _burn(account, amount);
-        } else {
-            // If caller doesn't have MINTER_ROLE, require allowance
-            uint256 currentAllowance = allowance(account, msg.sender);
-            require(
-                currentAllowance >= amount,
-                "ERC20: burn amount exceeds allowance"
-            );
-            _approve(account, msg.sender, currentAllowance - amount);
-            _burn(account, amount);
-        }
     }
 }
