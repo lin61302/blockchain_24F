@@ -190,6 +190,8 @@ def scanBlocks(chain):
                     receipt = dest_w3.eth.wait_for_transaction_receipt(tx_hash_sent, timeout=120)
                     if receipt.status == 1:
                         print(f"Wrap transaction successful: {tx_hash_sent.hex()}")
+                        wrapped_token_address = evt.args['wrapped_token']
+                        print('wrapped token address: ', wrapped_token_address)
                     else:
                         print(f"Wrap transaction failed: {tx_hash_sent.hex()}")
                         # Attempt to get revert reason
